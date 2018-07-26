@@ -1,77 +1,85 @@
 ﻿using Newtonsoft.Json;
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Text;
-using System.Reflection;
 using System.Linq;
+using System.Reflection;
+using System.Diagnostics;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using static PN.Network.HTTP.Entities;
 
 namespace PN.Network
 {
-    public abstract class HTTP
+    public class HTTP
     {
-        #region Base request logic
-
         protected static dynamic Base(RequestEntity requestModel)
         {
             var methodInfo = GetMethodInfo();
 
             return TryExecuteAction(methodInfo.ReturnType, () =>
             {
+                #region URL and request type
+
                 var requestUri = new Uri(
-                    $"{BaseApiUrl}" +
-                    $"{methodInfo.ClassName.ToLower()}" +
-                    $"{(string.IsNullOrWhiteSpace(methodInfo.ApiMethodName) ? string.Empty : $"/{ProcessComplexUrl(methodInfo.ApiMethodName, requestModel)}")}");
+                                    BaseUrl +
+                                    methodInfo.ClassName.ToLower() + "/" +
+                                    ProcessComplexString(methodInfo.Url, requestModel));
 
-                var response = Request(methodInfo.ReturnType, methodInfo.ApiMethodType, requestModel, requestUri);
-
-                return Convert.ChangeType(response, methodInfo.ReturnType);
-            });
-        }
-
-        private static object Request(
-            Type responseModelType, 
-            RequestTypes requestType, 
-            RequestEntity body = null, 
-            Uri requestUri = null)
-        {
-            return TryExecuteAction(responseModelType, () =>
-            {
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(requestUri);
-                request.Method = requestType.ToString();
+                request.Method = methodInfo.RequestType.ToString();
 
-                //if (!string.IsNullOrEmpty(token))
-                //    request.Headers["X-Session-Token"] = token;
+                #endregion
 
-                var requestJson = JsonConvert.SerializeObject(body);
+                #region Headers
+
+                var headers = methodInfo.IgnoreGlobalHeaders ? new List<HeaderAttribute>() : GlobalHeaders;
+                headers.AddRange(methodInfo.HeaderAttributes ?? new List<HeaderAttribute>());
+
+                foreach (var header in headers)
+                {
+                    if (string.IsNullOrWhiteSpace(header.Key) || string.IsNullOrWhiteSpace(header.Value))
+                        continue;
+
+                    request.Headers[header.Key] = ProcessComplexString(header.Value, requestModel);
+                }
+
+                #endregion
+
+                #region Body
+
+                var requestJson = JsonConvert.SerializeObject(requestModel);
                 if (!requestJson.Equals("{}") && !requestJson.Equals("null"))
                 {
                     byte[] requestBody = Encoding.UTF8.GetBytes(requestJson);
 
                     request.ContentLength = requestBody.Length;
-                    request.ContentType = "application/json";
+                    request.ContentType = ContentTypeToString(methodInfo.ContentType);
 
                     using (Stream stream = request.GetRequestStream())
                         stream.Write(requestBody, 0, requestBody.Length);
                 }
 
-                return ExecuteRequest(request, responseModelType);
+                #endregion
+
+                return ExecuteRequest(request, methodInfo.ReturnType);
             });
         }
 
-        private static object ExecuteRequest(HttpWebRequest request, Type responseModelType)
+        private static dynamic ExecuteRequest(HttpWebRequest request, Type responseModelType)
         {
             return TryExecuteAction(responseModelType, () =>
             {
                 using (WebResponse response = request.GetResponse())
                 {
-                    var responseJson = string.Empty;
                     using (Stream responseStream = response.GetResponseStream())
-                        responseJson = new StreamReader(responseStream).ReadToEnd();
-                    return JsonConvert.DeserializeObject(responseJson, responseModelType);
+                    {
+                        var responseJson = new StreamReader(responseStream).ReadToEnd();
+                        var responseObject = JsonConvert.DeserializeObject(responseJson, responseModelType);
+
+                        return Convert.ChangeType(responseObject, responseModelType);
+                    } 
                 }
             });
         }
@@ -89,45 +97,43 @@ namespace PN.Network
                 return instance;
             }
         }
-
-
-        private static string _baseApiUrl;
-        protected static string BaseApiUrl
-        {
-            get => _baseApiUrl ?? throw new ArgumentException("Base API url is not set!");
-            set => _baseApiUrl = value?.Trim() == string.Empty ? null : value;
-        }
-
-
+        
         private static ReflMethodInfo GetMethodInfo()
         {
             StackTrace st = new StackTrace();
             StackFrame[] fr = st.GetFrames();
 
-            if (fr != null)
+            if (fr == null) return null;
+            
+            var method = fr[1].GetMethod();
+
+            var url = method.GetCustomAttributes()?.OfType<UrlAttribute>()?.First();
+            var requestType = method.GetCustomAttributes()?.OfType<RequestTypeAttribute>()?.First();
+            var contentType = method.GetCustomAttributes()?.OfType<ContentTypeAttribute>()?.First();
+            var ignoreGlobalHeaders = method.GetCustomAttributes()?.OfType<IgnoreGlobalHeadersAttribute>()?.First();
+            var headers = method.GetCustomAttributes()?.OfType<HeaderAttribute>()?.ToList();
+
+            return new ReflMethodInfo()
             {
-                var method = fr[2].GetMethod();
-                var item = method.GetCustomAttributes()?.OfType<MethodAttribute>()?.First();
-
-                return new ReflMethodInfo()
-                {
-                    ReturnType = method is MethodInfo ? (method as MethodInfo).ReturnType : null,
-                    Name = method.Name,
-                    ClassName = method.ReflectedType.Name,
-                    ApiMethodName = item?.Name,
-                    ApiMethodType = item.Type,
-                    IsPaymentApi = item.IsPayment,
-                };
-            }
-
-            return null;
+                ReturnType = method is MethodInfo ? (method as MethodInfo).ReturnType : null,
+                Name = method.Name,
+                ClassName = method.ReflectedType.Name,
+                Url = url?.Url,
+                RequestType = requestType == null ? RequestTypes.POST : requestType.RequestType,
+                ContentType = contentType == null ? ContentTypes.JSON : contentType.ContentType,
+                IgnoreGlobalHeaders = ignoreGlobalHeaders != null,
+                HeaderAttributes = headers,
+            };
         }
 
-        private static string ProcessComplexUrl(string urlTemplate, RequestEntity model)
+        private static string ProcessComplexString(string strToProcess, RequestEntity model)
         {
-            MatchCollection matches = Regex.Matches(urlTemplate, @"\{[\w]+\}");
+            if (string.IsNullOrWhiteSpace(strToProcess))
+                return string.Empty;
 
-            var str = urlTemplate.Substring(0, matches.Count > 0 ? matches[0].Index : urlTemplate.Length);
+            MatchCollection matches = Regex.Matches(strToProcess, @"\{[\w]+\}");
+
+            var str = strToProcess.Substring(0, matches.Count > 0 ? matches[0].Index : strToProcess.Length);
 
             for (int i = 0; i < matches.Count; i++)
             {
@@ -137,40 +143,98 @@ namespace PN.Network
 
                 var indexOfLastMatchChar = m.Index + m.Length;
 
-                var nextClearPartLength = -indexOfLastMatchChar + (i + 1 < matches.Count ? matches[i + 1].Index : urlTemplate.Length);
+                var nextClearPartLength = -indexOfLastMatchChar + (i + 1 < matches.Count ? matches[i + 1].Index : strToProcess.Length);
 
-                str += urlTemplate.Substring(indexOfLastMatchChar, nextClearPartLength);
+                str += strToProcess.Substring(indexOfLastMatchChar, nextClearPartLength);
             }
 
             return str;
         }
 
+        private static string ContentTypeToString(ContentTypes contentType)
+        {
+            switch (contentType)
+            {
+                case ContentTypes.JSON:
+                    return "application/json";
+
+                default:
+                    return "application/json";
+            } 
+        }
+
         private class ReflMethodInfo
         {
-            public string Name { get; set; }
-            public string ClassName { get; set; }
-            public Type ReturnType { get; set; }
-            public string ApiMethodName { get; set; }
-            public RequestTypes ApiMethodType { get; set; }
-            public bool IsPaymentApi { get; set; }
+            internal string Name { get; set; }
+            internal string ClassName { get; set; }
+            internal Type ReturnType { get; set; }
+
+            internal string Url { get; set; }
+            internal RequestTypes RequestType { get; set; }
+            internal ContentTypes ContentType { get; set; }
+            internal List<HeaderAttribute> HeaderAttributes { get; set; }
+            internal bool IgnoreGlobalHeaders { get; set; }
+        }
+
+        #region Attributes
+
+        //[AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = true)]
+        //protected class MethodAttribute : Attribute
+        //{
+        //    public readonly string Name;
+        //    public readonly RequestTypes Type;
+
+        //    public MethodAttribute(string name, RequestTypes type = RequestTypes.POST)
+        //    {
+        //        Name = name;
+        //        Type = type;
+        //    }
+        //}
+
+        [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
+        protected class UrlAttribute : Attribute
+        {
+            public readonly string Url;
+            public UrlAttribute(string name) { Url = name; }
+        }
+
+        [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
+        protected class RequestTypeAttribute : Attribute
+        {
+            public readonly RequestTypes RequestType;
+            public RequestTypeAttribute(RequestTypes requestType) { RequestType = requestType; }
+        }
+
+        [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
+        protected class ContentTypeAttribute : Attribute
+        {
+            public readonly ContentTypes ContentType;
+            public ContentTypeAttribute(ContentTypes contentType) { ContentType = contentType; }
         }
 
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = true)]
-        protected class MethodAttribute : Attribute
+        protected class HeaderAttribute : Attribute
         {
-            public readonly string Name;
-            public readonly RequestTypes Type;
-            public readonly bool IsPayment;
+            public readonly string Key;
+            public readonly string Value;
+        //    public readonly string Header;
 
-            public MethodAttribute(string name, RequestTypes type = RequestTypes.POST, bool isPayment = false)
-            {
-                Name = name;
-                Type = type;
-                IsPayment = isPayment;
-            }
+            public HeaderAttribute(string key, string value) { Key = key; Value = value; }
+        //    public HeaderAttribute(string header) { Header = header; }
+
+            //public override string ToString()
+            //{
+            //    throw new NotImplementedException();
+            //}
         }
 
+        [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
+        protected class IgnoreGlobalHeadersAttribute : Attribute { }
+
+        #endregion
+
         protected enum RequestTypes { GET, POST }
+        protected enum ContentTypes { JSON }
 
         public class Entities
         {
@@ -187,6 +251,17 @@ namespace PN.Network
                 public string ErrorMessage { get; set; }
             }
         }
+
+        #region Props and fields
+        
+        private static string _baseUrl;
+        protected static string BaseUrl
+        {
+            get => _baseUrl ?? throw new ArgumentException("Base URL is not set!");
+            set => _baseUrl = value?.Trim() == string.Empty ? null : value.TrimEnd('/') + '/';
+        }
+
+        protected static List<HeaderAttribute> GlobalHeaders { get; set; } = new List<HeaderAttribute>();
 
         #endregion
     }
