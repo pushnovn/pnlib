@@ -237,7 +237,7 @@ namespace PN.Network
 
         protected static List<HeaderAttribute> GlobalHeaders { get; set; } = new List<HeaderAttribute>();
 
-        protected static void Init(string baseUrl, List<HeaderAttribute> headers)
+        protected static void Init(string baseUrl, List<HeaderAttribute> headers = null)
         {
             BaseUrl = baseUrl;
             GlobalHeaders = headers ?? new List<HeaderAttribute>();
