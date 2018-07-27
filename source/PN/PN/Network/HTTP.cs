@@ -101,7 +101,7 @@ namespace PN.Network
 
             if (fr == null) return null;
             
-            var method = fr[1].GetMethod();
+            var method = fr[2].GetMethod();
 
             var url = method.GetCustomAttributes()?.OfType<UrlAttribute>()?.FirstOrDefault();
             var requestType = method.GetCustomAttributes()?.OfType<RequestTypeAttribute>()?.FirstOrDefault();
