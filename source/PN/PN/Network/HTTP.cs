@@ -63,24 +63,20 @@ namespace PN.Network
 
                 #endregion
 
-                return ExecuteRequest(request, methodInfo.ReturnType);
-            });
-        }
+                #region Execute request
 
-        private static dynamic ExecuteRequest(HttpWebRequest request, Type responseModelType)
-        {
-            return TryExecuteAction(responseModelType, () =>
-            {
                 using (WebResponse response = request.GetResponse())
                 {
                     using (Stream responseStream = response.GetResponseStream())
                     {
                         var responseJson = new StreamReader(responseStream).ReadToEnd();
-                        var responseObject = JsonConvert.DeserializeObject(responseJson, responseModelType);
+                        var responseObject = JsonConvert.DeserializeObject(responseJson, methodInfo.ReturnType);
 
-                        return Convert.ChangeType(responseObject, responseModelType);
-                    } 
+                        return Convert.ChangeType(responseObject, methodInfo.ReturnType);
+                    }
                 }
+
+                #endregion
             });
         }
 
@@ -107,10 +103,10 @@ namespace PN.Network
             
             var method = fr[1].GetMethod();
 
-            var url = method.GetCustomAttributes()?.OfType<UrlAttribute>()?.First();
-            var requestType = method.GetCustomAttributes()?.OfType<RequestTypeAttribute>()?.First();
-            var contentType = method.GetCustomAttributes()?.OfType<ContentTypeAttribute>()?.First();
-            var ignoreGlobalHeaders = method.GetCustomAttributes()?.OfType<IgnoreGlobalHeadersAttribute>()?.First();
+            var url = method.GetCustomAttributes()?.OfType<UrlAttribute>()?.FirstOrDefault();
+            var requestType = method.GetCustomAttributes()?.OfType<RequestTypeAttribute>()?.FirstOrDefault();
+            var contentType = method.GetCustomAttributes()?.OfType<ContentTypeAttribute>()?.FirstOrDefault();
+            var ignoreGlobalHeaders = method.GetCustomAttributes()?.OfType<IgnoreGlobalHeadersAttribute>()?.FirstOrDefault();
             var headers = method.GetCustomAttributes()?.OfType<HeaderAttribute>()?.ToList();
 
             return new ReflMethodInfo()
@@ -177,20 +173,7 @@ namespace PN.Network
         }
 
         #region Attributes
-
-        //[AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = true)]
-        //protected class MethodAttribute : Attribute
-        //{
-        //    public readonly string Name;
-        //    public readonly RequestTypes Type;
-
-        //    public MethodAttribute(string name, RequestTypes type = RequestTypes.POST)
-        //    {
-        //        Name = name;
-        //        Type = type;
-        //    }
-        //}
-
+        
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
         protected class UrlAttribute : Attribute
         {
@@ -215,17 +198,8 @@ namespace PN.Network
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = true)]
         protected class HeaderAttribute : Attribute
         {
-            public readonly string Key;
-            public readonly string Value;
-        //    public readonly string Header;
-
+            public readonly string Key, Value;
             public HeaderAttribute(string key, string value) { Key = key; Value = value; }
-        //    public HeaderAttribute(string header) { Header = header; }
-
-            //public override string ToString()
-            //{
-            //    throw new NotImplementedException();
-            //}
         }
 
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
@@ -233,7 +207,7 @@ namespace PN.Network
 
         #endregion
 
-        protected enum RequestTypes { GET, POST }
+        protected enum RequestTypes { GET, POST, PUT, DELETE }
         protected enum ContentTypes { JSON }
 
         public class Entities
@@ -258,10 +232,16 @@ namespace PN.Network
         protected static string BaseUrl
         {
             get => _baseUrl ?? throw new ArgumentException("Base URL is not set!");
-            set => _baseUrl = value?.Trim() == string.Empty ? null : value.TrimEnd('/') + '/';
+            set => _baseUrl = string.IsNullOrWhiteSpace(value) ? null : value.TrimEnd('/') + '/';
         }
 
         protected static List<HeaderAttribute> GlobalHeaders { get; set; } = new List<HeaderAttribute>();
+
+        protected static void Init(string baseUrl, List<HeaderAttribute> headers)
+        {
+            BaseUrl = baseUrl;
+            GlobalHeaders = headers ?? new List<HeaderAttribute>();
+        }
 
         #endregion
     }
