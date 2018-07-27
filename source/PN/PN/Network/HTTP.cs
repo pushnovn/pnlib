@@ -23,8 +23,7 @@ namespace PN.Network
                 #region URL and request type
 
                 var requestUri = new Uri(
-                                    BaseUrl +
-                                    methodInfo.ClassName.ToLower() + "/" +
+                                    methodInfo.MethodPath +
                                     ProcessComplexString(methodInfo.Url, requestModel));
 
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(requestUri);
@@ -33,9 +32,10 @@ namespace PN.Network
                 #endregion
 
                 #region Headers
-
-                var headers = methodInfo.IgnoreGlobalHeaders ? new List<HeaderAttribute>() : GlobalHeaders;
+                var headers = new List<HeaderAttribute>();
+                headers.AddRange(methodInfo.IgnoreGlobalHeaders ? new List<HeaderAttribute>() : GlobalHeaders);
                 headers.AddRange(methodInfo.HeaderAttributes ?? new List<HeaderAttribute>());
+                headers.AddRange(requestModel.Headers ?? new List<HeaderAttribute>());
 
                 foreach (var header in headers)
                 {
@@ -109,11 +109,26 @@ namespace PN.Network
             var ignoreGlobalHeaders = method.GetCustomAttributes()?.OfType<IgnoreGlobalHeadersAttribute>()?.FirstOrDefault();
             var headers = method.GetCustomAttributes()?.OfType<HeaderAttribute>()?.ToList();
 
+
+            var temp_uri = string.Empty;
+            var typ = method.ReflectedType;
+            while (typ != null)
+            {
+                var att = typ
+                    .GetCustomAttributes(typeof(UrlAttribute), true)
+                    .FirstOrDefault() as UrlAttribute;
+
+                var checkBaseUrl = typ.ReflectedType == null && string.IsNullOrWhiteSpace(_baseUrl) == false;
+                temp_uri = (checkBaseUrl ? BaseUrl : (att?.Url ?? typ.Name) + "/") + temp_uri;
+                
+                typ = typ.ReflectedType;
+            }
+
             return new ReflMethodInfo()
             {
                 ReturnType = method is MethodInfo ? (method as MethodInfo).ReturnType : null,
                 Name = method.Name,
-                ClassName = method.ReflectedType.Name,
+                MethodPath = temp_uri,
                 Url = url?.Url,
                 RequestType = requestType == null ? RequestTypes.POST : requestType.RequestType,
                 ContentType = contentType == null ? ContentTypes.JSON : contentType.ContentType,
@@ -162,7 +177,7 @@ namespace PN.Network
         private class ReflMethodInfo
         {
             internal string Name { get; set; }
-            internal string ClassName { get; set; }
+            internal string MethodPath { get; set; }
             internal Type ReturnType { get; set; }
 
             internal string Url { get; set; }
@@ -196,7 +211,7 @@ namespace PN.Network
         }
 
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = true)]
-        protected class HeaderAttribute : Attribute
+        public class HeaderAttribute : Attribute
         {
             public readonly string Key, Value;
             public HeaderAttribute(string key, string value) { Key = key; Value = value; }
@@ -212,7 +227,12 @@ namespace PN.Network
 
         public class Entities
         {
-            public class RequestEntity { }
+            public class RequestEntity
+            {
+                [JsonIgnoreAttribute]
+                public List<HeaderAttribute> Headers { get; set; }
+            }
+
             public class ResponseEntity
             {
                 [JsonIgnoreAttribute]
@@ -229,7 +249,7 @@ namespace PN.Network
         #region Props and fields
         
         private static string _baseUrl;
-        protected static string BaseUrl
+        public static string BaseUrl
         {
             get => _baseUrl ?? throw new ArgumentException("Base URL is not set!");
             set => _baseUrl = string.IsNullOrWhiteSpace(value) ? null : value.TrimEnd('/') + '/';
@@ -237,10 +257,10 @@ namespace PN.Network
 
         protected static List<HeaderAttribute> GlobalHeaders { get; set; } = new List<HeaderAttribute>();
 
-        protected static void Init(string baseUrl, List<HeaderAttribute> headers = null)
+        public static void Init(string baseUrl, List<HeaderAttribute> headers = null)
         {
-            BaseUrl = baseUrl;
-            GlobalHeaders = headers ?? new List<HeaderAttribute>();
+            BaseUrl = baseUrl ?? _baseUrl;
+            GlobalHeaders = headers ?? GlobalHeaders ?? new List<HeaderAttribute>();
         }
 
         #endregion
