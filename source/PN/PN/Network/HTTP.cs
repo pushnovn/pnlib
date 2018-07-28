@@ -6,32 +6,48 @@ using System.Text;
 using System.Linq;
 using System.Reflection;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using static PN.Network.HTTP.Entities;
+using System.Runtime.CompilerServices;
 
 namespace PN.Network
 {
     public class HTTP
     {
-        protected static dynamic Base(RequestEntity requestModel)
-        {
-            var methodInfo = GetMethodInfo();
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        protected static dynamic Base(RequestEntity requestModel) => BaseAsyncPrivate<dynamic>(requestModel).Result;
 
-            return TryExecuteAction(methodInfo.ReturnType, () =>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        protected static dynamic Base<T>(RequestEntity requestModel) => BaseAsyncPrivate<T>(requestModel);
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static async Task<T> BaseAsyncPrivate<T>(RequestEntity requestModel)
+        {
+            //if (propertyName != null)
+            //    Console.WriteLine("propertyName = " + propertyName);
+            //Console.WriteLine("current method:");
+            //var mm = MethodBase.GetCurrentMethod();
+            //Console.WriteLine(mm.ReflectedType.DeclaringType);
+
+     //       Console.WriteLine(JsonConvert.SerializeObject( WWWW_CustomAttribute.ppp));
+
+            var methodInfo = GetMethodInfo<T>();
+            
+            try
             {
                 #region URL and request type
 
-                var requestUri = new Uri(
-                                    methodInfo.MethodPath +
-                                    ProcessComplexString(methodInfo.Url, requestModel));
-
+              //  Console.WriteLine(methodInfo.MethodFullUrl);
+                var requestUri = new Uri(ProcessComplexString(methodInfo.MethodFullUrl, requestModel));
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(requestUri);
                 request.Method = methodInfo.RequestType.ToString();
 
                 #endregion
 
                 #region Headers
+
                 var headers = new List<HeaderAttribute>();
                 headers.AddRange(methodInfo.IgnoreGlobalHeaders ? new List<HeaderAttribute>() : GlobalHeaders);
                 headers.AddRange(methodInfo.HeaderAttributes ?? new List<HeaderAttribute>());
@@ -65,51 +81,97 @@ namespace PN.Network
 
                 #region Execute request
 
-                using (WebResponse response = request.GetResponse())
+                using (WebResponse response = await request.GetResponseAsync())
                 {
                     using (Stream responseStream = response.GetResponseStream())
                     {
                         var responseJson = new StreamReader(responseStream).ReadToEnd();
                         var responseObject = JsonConvert.DeserializeObject(responseJson, methodInfo.ReturnType);
 
-                        return Convert.ChangeType(responseObject, methodInfo.ReturnType);
+                        return (T)(Convert.ChangeType(responseObject, methodInfo.ReturnType));
                     }
                 }
 
                 #endregion
-            });
-        }
-
-        private static dynamic TryExecuteAction(Type responseModelType, Func<object> action)
-        {
-            try
-            {
-                return action();
             }
             catch (Exception ex)
             {
-                var instance = Activator.CreateInstance(responseModelType);
-                responseModelType.GetProperty(nameof(ResponseEntity.Exception)).SetValue(instance, ex);
-                return instance;
+                var instance = Activator.CreateInstance(methodInfo.ReturnType);
+                methodInfo.ReturnType.GetProperty(nameof(ResponseEntity.Exception)).SetValue(instance, ex);
+                return (T)instance;
             }
         }
-        
-        private static ReflMethodInfo GetMethodInfo()
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static ReflMethodInfo GetMethodInfo<T>()
         {
             StackTrace st = new StackTrace();
             StackFrame[] fr = st.GetFrames();
-
             if (fr == null) return null;
-            
-            var method = fr[2].GetMethod();
+
+            //StackTrace st2 = new StackTrace(true);
+            //for (int i = 0; i < st2.FrameCount; i++)
+            //{
+            //    // Note that high up the call stack, there is only
+            //    // one stack frame.
+            //    StackFrame sf = st2.GetFrame(i);
+
+            //    Console.WriteLine();
+            //    Console.WriteLine("High up the call stack, Method: {0}", sf.GetMethod());
+            //    Console.WriteLine("High up the call stack, Line Number: {0}", sf.GetFileLineNumber());
+
+            //    var meth = sf.GetMethod();
+            //    var retType = (meth as MethodInfo)?.ReturnType;
+
+            //    //    var ignoreGlobalHeader2222222s = sf.GetMethod().GetCustomAttributes()?.OfType<IgnoreGlobalHeadersAttribute>()?.FirstOrDefault();
+            //    var attrs = sf.GetMethod().GetCustomAttributes();
+            //    if (attrs != null)
+            //    {
+            //        Console.WriteLine("GetCustomAttributes COUNT: {0}", attrs.Count());
+            //        foreach (var att in attrs)
+            //        {
+            //            Console.WriteLine("Attr: {0}", att.GetType().Name);
+            //        }
+            //    }
+            //    Console.WriteLine("ReturnType: {0}", retType);
+            //}
+
+            //Console.WriteLine();
+            //Console.WriteLine();
+            //Console.WriteLine();
+            //Console.WriteLine();
+            //Console.WriteLine();
+            //Console.WriteLine();
+            //Console.WriteLine();
+            //Console.WriteLine();
+            //Console.WriteLine();
+            //Console.WriteLine();
+            //foreach (var f in fr)
+            //    Console.WriteLine(JsonConvert.SerializeObject(f.GetMethod() as MethodInfo));
+
+            //Console.WriteLine();
+            //Console.WriteLine();
+            //Console.WriteLine();
+            //Console.WriteLine();
+            //Console.WriteLine();
+
+            //Console.WriteLine();
+            //Console.WriteLine();
+            //Console.WriteLine();
+            //Console.WriteLine();
+            //Console.WriteLine();
+
+            //foreach (var f in fr)
+            //    Console.WriteLine(JsonConvert.SerializeObject(f.GetMethod()));
+
+            var method = fr[5].GetMethod();
 
             var url = method.GetCustomAttributes()?.OfType<UrlAttribute>()?.FirstOrDefault();
             var requestType = method.GetCustomAttributes()?.OfType<RequestTypeAttribute>()?.FirstOrDefault();
             var contentType = method.GetCustomAttributes()?.OfType<ContentTypeAttribute>()?.FirstOrDefault();
             var ignoreGlobalHeaders = method.GetCustomAttributes()?.OfType<IgnoreGlobalHeadersAttribute>()?.FirstOrDefault();
             var headers = method.GetCustomAttributes()?.OfType<HeaderAttribute>()?.ToList();
-
-
+            
             var temp_uri = string.Empty;
             var typ = method.ReflectedType;
             while (typ != null)
@@ -119,17 +181,17 @@ namespace PN.Network
                     .FirstOrDefault() as UrlAttribute;
 
                 var checkBaseUrl = typ.ReflectedType == null && string.IsNullOrWhiteSpace(_baseUrl) == false;
-                temp_uri = (checkBaseUrl ? BaseUrl : (att?.Url ?? typ.Name) + "/") + temp_uri;
+                temp_uri = (checkBaseUrl ? BaseUrl : (att?.Url ?? typ.Name).Trim('/') + "/") + temp_uri;
                 
                 typ = typ.ReflectedType;
             }
 
             return new ReflMethodInfo()
             {
-                ReturnType = method is MethodInfo ? (method as MethodInfo).ReturnType : null,
+                ReturnType = typeof(T) != typeof(object) ? typeof(T) : (method as MethodInfo)?.ReturnType,
                 Name = method.Name,
                 MethodPath = temp_uri,
-                Url = url?.Url,
+                MethodPartialUrl = url?.Url,
                 RequestType = requestType == null ? RequestTypes.POST : requestType.RequestType,
                 ContentType = contentType == null ? ContentTypes.JSON : contentType.ContentType,
                 IgnoreGlobalHeaders = ignoreGlobalHeaders != null,
@@ -150,7 +212,7 @@ namespace PN.Network
             {
                 Match m = matches[i];
 
-                str += model.GetType().GetProperty(m.Value.Substring(1, m.Length - 2)).GetValue(model) as String ?? m.Value;
+                str += model.GetType().GetProperty(m.Value.Substring(1, m.Length - 2))?.GetValue(model) as String ?? m.Value;
 
                 var indexOfLastMatchChar = m.Index + m.Length;
 
@@ -180,7 +242,8 @@ namespace PN.Network
             internal string MethodPath { get; set; }
             internal Type ReturnType { get; set; }
 
-            internal string Url { get; set; }
+            internal string MethodPartialUrl { get; set; }
+            internal string MethodFullUrl => (MethodPath ?? "") + (MethodPartialUrl ?? "");
             internal RequestTypes RequestType { get; set; }
             internal ContentTypes ContentType { get; set; }
             internal List<HeaderAttribute> HeaderAttributes { get; set; }
@@ -249,7 +312,7 @@ namespace PN.Network
         #region Props and fields
         
         private static string _baseUrl;
-        public static string BaseUrl
+        private static string BaseUrl
         {
             get => _baseUrl ?? throw new ArgumentException("Base URL is not set!");
             set => _baseUrl = string.IsNullOrWhiteSpace(value) ? null : value.TrimEnd('/') + '/';
@@ -262,7 +325,50 @@ namespace PN.Network
             BaseUrl = baseUrl ?? _baseUrl;
             GlobalHeaders = headers ?? GlobalHeaders ?? new List<HeaderAttribute>();
         }
-
+        
         #endregion
     }
+    //public class WWWW_CustomAttribute : Attribute
+    //{
+    //    public static List<MethodInfo> MethodsList = new List<MethodInfo>();
+    //    static WWWW_CustomAttribute()
+    //    {
+    //        var methods = Assembly.GetEntryAssembly() //Use .GetCallingAssembly() if this method is in a library, or even both
+    //                    .GetTypes()
+    //                    .SelectMany(t => t.GetMethods())
+    //        //          .Where(m => m.GetCustomAttributes(typeof(WWWW_CustomAttribute), false).Length > 0)
+    //                    .ToArray();
+
+    //        MethodsList.AddRange(methods);
+
+    //        ppp.Add(Assembly.GetExecutingAssembly().FullName);
+    //        Console.WriteLine("GetCallingAssembly: " + JsonConvert.SerializeObject(Assembly.GetCallingAssembly()));
+
+    //    }
+
+    //    public string fullMethodPath;
+    //    public bool someThing;
+    //    public static List<string> ppp = new List<string>();
+
+    //    public WWWW_CustomAttribute([CallerMemberName] string membername = "")
+    //    {
+    //        //var methods = Assembly.GetExecutingAssembly() //Use .GetCallingAssembly() if this method is in a library, or even both
+    //        //          .GetTypes()
+    //        //          .SelectMany(t => t.GetMethods())
+    //        //        //  .Where(m => m.GetCustomAttributes(typeof(WWWW_CustomAttribute), false).Length > 0)
+    //        //          .ToArray();
+    //        //MethodsList.AddRange(methods);
+    //        //  ppp.Add(Assembly.GetCallingAssembly().FullName);
+    //        //    Console.WriteLine(Assembly.GetCallingAssembly().FullName);
+
+
+
+
+    //        var method = MethodsList.FirstOrDefault(m => m.Name == membername);
+    //            if (method == null || method.DeclaringType == null) return; //Not suppose to happen, but safety comes first
+    //            fullMethodPath = method.DeclaringType.Name + membername; //Work it around any way you want it
+    //                                                                     //  I need here to get the type of membername parent. 
+    //                                                                     //  Here I want to get CustClass, not fooBase
+    //        }
+    //    }
 }
