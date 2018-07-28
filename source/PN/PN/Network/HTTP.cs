@@ -9,21 +9,27 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
-using static PN.Network.HTTP.Entities;
 using System.Runtime.CompilerServices;
+using static PN.Network.HTTP.Entities;
 
 namespace PN.Network
 {
     public class HTTP
     {
         [MethodImpl(MethodImplOptions.NoInlining)]
-        protected static dynamic Base(RequestEntity requestModel) => BaseAsyncPrivate<dynamic>(requestModel).Result;
+        protected static dynamic Base(RequestEntity requestModel)
+        {
+            var methodInfo = GetMethodInfo();
+
+            var method = typeof(HTTP).GetMethod(nameof(BaseAsyncPrivate), BindingFlags.NonPublic | BindingFlags.Static);
+            var generic = method.MakeGenericMethod(methodInfo.ReturnType);
+            var task = generic.Invoke(null, new object[] { requestModel, methodInfo });
+            
+            return methodInfo.IsGenericType ? task : task.GetType().GetProperty(nameof(Task<dynamic>.Result)).GetValue(task, null);
+        }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        protected static dynamic Base<T>(RequestEntity requestModel) => BaseAsyncPrivate<T>(requestModel);
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static async Task<T> BaseAsyncPrivate<T>(RequestEntity requestModel)
+        private static async Task<T> BaseAsyncPrivate<T>(RequestEntity requestModel, ReflMethodInfo methodInfo)
         {
             //if (propertyName != null)
             //    Console.WriteLine("propertyName = " + propertyName);
@@ -31,15 +37,13 @@ namespace PN.Network
             //var mm = MethodBase.GetCurrentMethod();
             //Console.WriteLine(mm.ReflectedType.DeclaringType);
 
-     //       Console.WriteLine(JsonConvert.SerializeObject( WWWW_CustomAttribute.ppp));
-
-            var methodInfo = GetMethodInfo<T>();
+            //       Console.WriteLine(JsonConvert.SerializeObject( WWWW_CustomAttribute.ppp));
             
             try
             {
                 #region URL and request type
 
-              //  Console.WriteLine(methodInfo.MethodFullUrl);
+            //    Console.WriteLine(methodInfo.MethodFullUrl);
                 var requestUri = new Uri(ProcessComplexString(methodInfo.MethodFullUrl, requestModel));
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(requestUri);
                 request.Method = methodInfo.RequestType.ToString();
@@ -88,7 +92,7 @@ namespace PN.Network
                         var responseJson = new StreamReader(responseStream).ReadToEnd();
                         var responseObject = JsonConvert.DeserializeObject(responseJson, methodInfo.ReturnType);
 
-                        return (T)(Convert.ChangeType(responseObject, methodInfo.ReturnType));
+                        return (T)Convert.ChangeType(responseObject, methodInfo.ReturnType);
                     }
                 }
 
@@ -103,11 +107,13 @@ namespace PN.Network
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static ReflMethodInfo GetMethodInfo<T>()
+        private static ReflMethodInfo GetMethodInfo()
         {
             StackTrace st = new StackTrace();
             StackFrame[] fr = st.GetFrames();
             if (fr == null) return null;
+            
+            #region debug comments
 
             //StackTrace st2 = new StackTrace(true);
             //for (int i = 0; i < st2.FrameCount; i++)
@@ -164,8 +170,14 @@ namespace PN.Network
             //foreach (var f in fr)
             //    Console.WriteLine(JsonConvert.SerializeObject(f.GetMethod()));
 
-            var method = fr[5].GetMethod();
+            #endregion
+            
+            var method = fr[2].GetMethod();
 
+            var baseResponseModelType = (method as MethodInfo)?.ReturnType;
+            var isGenericType = baseResponseModelType.IsGenericType;
+            var responseModelType = isGenericType ? baseResponseModelType.GetGenericArguments()[0] : baseResponseModelType;
+           
             var url = method.GetCustomAttributes()?.OfType<UrlAttribute>()?.FirstOrDefault();
             var requestType = method.GetCustomAttributes()?.OfType<RequestTypeAttribute>()?.FirstOrDefault();
             var contentType = method.GetCustomAttributes()?.OfType<ContentTypeAttribute>()?.FirstOrDefault();
@@ -188,7 +200,9 @@ namespace PN.Network
 
             return new ReflMethodInfo()
             {
-                ReturnType = typeof(T) != typeof(object) ? typeof(T) : (method as MethodInfo)?.ReturnType,
+                ReturnType = responseModelType,// typeof(T) != typeof(object) ? typeof(T) : (method as MethodInfo)?.ReturnType,
+                BaseReturnType = baseResponseModelType,
+                IsGenericType = isGenericType,
                 Name = method.Name,
                 MethodPath = temp_uri,
                 MethodPartialUrl = url?.Url,
@@ -241,6 +255,8 @@ namespace PN.Network
             internal string Name { get; set; }
             internal string MethodPath { get; set; }
             internal Type ReturnType { get; set; }
+            internal Type BaseReturnType { get; set; }
+            internal bool IsGenericType { get; set; }
 
             internal string MethodPartialUrl { get; set; }
             internal string MethodFullUrl => (MethodPath ?? "") + (MethodPartialUrl ?? "");

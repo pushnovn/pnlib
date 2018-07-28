@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using static PN.Network.HTTP;
+using static PN.Network.HTTP.Entities;
 
 namespace ConsoleApp1
 {
@@ -29,16 +30,24 @@ namespace ConsoleApp1
                 }
             };
 
-            
-    //        var ttt = API.Testtt.TestAsync(mod).Result;
-    //        var ttt2 = API.Testtt.Test(mod);
+        //    var ppp = API.Testtt.TestAsync(mod).Result;
+        //    var ppp = API.Testtt.Test(mod);
+
+          
+        //    Console.WriteLine(ppp.Exception?.ToString() ?? ppp.id);
+
+            //        var ttt = API.Testtt.TestAsync(mod).Result;
+            //        var ttt2 = API.Testtt.Test(mod);
 
             Task.Run(async () => 
             {
 
                 var ppp = API.Testtt.Test(mod);
-            //    var ppp = await API.Testtt.TestAsync(mod);
-                Console.WriteLine(ppp.Exception?.ToString() ?? ppp.id);
+                Console.WriteLine("Sync: " + (ppp.Exception?.ToString() ?? ppp.id));
+
+                ppp = await API.Testtt.TestAsync(mod);
+                Console.WriteLine("Async: " + (ppp.Exception?.ToString() ?? ppp.id));
+
             });
         //    Debug.WriteLine(ttt.Exception);
         while (true)
@@ -57,12 +66,12 @@ namespace ConsoleApp1
             [Header("aaaaaa", "bbbbbbbbbbbbbbb")]
             [IgnoreGlobalHeaders]
             [Url("")]
-            public static Task<TestModel> TestAsync(Entities.RequestEntity ttt) => Base<TestModel>(ttt);
-            
+            public static Task<TestModel> TestAsync(RequestEntity ttt) => Base(ttt);
+
             [Header("aaaaaa", "bbbbbbbbbbbbbbb")]
             [IgnoreGlobalHeaders]
             [Url("")]
-            public static TestModel Test(Entities.RequestEntity ttt) => Base(ttt);
+            public static TestModel Test(RequestEntity ttt) => Base(ttt);
         }
 
         public class A
@@ -75,12 +84,12 @@ namespace ConsoleApp1
                     [Url("D/method-name")]
                     [Header("aaaaaa", "bbbbbbbbbbbbbbb")]
                     [IgnoreGlobalHeaders]
-                    public static Task<TestModel> TestAsync(Entities.RequestEntity ttt) => Base<TestModel>(ttt);
+                    public static Task<TestModel> TestAsync(RequestEntity ttt) => Base(ttt);
 
                     [Url("D/method-name")]
                     [Header("aaaaaa", "bbbbbbbbbbbbbbb")]
                     [IgnoreGlobalHeaders]
-                    public static TestModel Test(Entities.RequestEntity ttt) => Base(ttt);
+                    public static TestModel Test(RequestEntity ttt) => Base(ttt);
                 }
             }
         }
