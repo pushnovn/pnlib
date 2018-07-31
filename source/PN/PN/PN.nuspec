@@ -2,13 +2,13 @@
 <package >
   <metadata>
     <id>Pushnovn.PN</id>
-    <version>0.1.2.4</version>
+    <version>0.1.2.5</version>
     <title>PN lib (Pre-Alpha)</title>
     <authors>Pushnovn</authors>
     <owners>Pushnovn</owners>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>Internal PN lib</description>
-    <releaseNotes>Try to remove dependencies.</releaseNotes>
+    <releaseNotes>Try to remove dependencies #2.</releaseNotes>
     <projectUrl>http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http</projectUrl>
     <copyright>Copyright 2018</copyright>
     <tags></tags>
