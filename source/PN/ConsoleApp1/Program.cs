@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+﻿//using Newtonsoft.Json;
 using PN.Network;
 using System;
 using System.Collections.Generic;
@@ -67,7 +67,7 @@ namespace ConsoleApp1
                 //StreamReader reader = new StreamReader(test0.ResponseStream);
                 //string text = reader.ReadToEnd();
 
-                var yy =  JsonConvert.DeserializeObject(null, typeof(TestModel));
+       //         var yy =  JsonConvert.DeserializeObject(null, typeof(TestModel));
 
                 var tt = new List<string>() { "", "" };
                 var t = tt.IndexOf(null);
@@ -115,9 +115,9 @@ namespace ConsoleApp1
 
     public class VersionRequestModel : Entities.RequestEntity
     {
-        [JsonIgnore]
+   //     [JsonIgnore]
         public string Version { get; set; }
-        [JsonIgnore]
+   //     [JsonIgnore]
         public string Token { get; set; }
     }
     public class VersionResponseModel : Entities.ResponseEntity
