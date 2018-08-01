@@ -1,21 +1,103 @@
-﻿using System.Diagnostics;
+﻿using System.Runtime.CompilerServices;
+using System.Diagnostics;
 using System.Reflection;
+using Newtonsoft.Json;
 using System.Text;
-using System.Linq;
+using PN.Crypt;
 using System;
 
-using Newtonsoft.Json;
-
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using System.Security;
-
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 namespace PN.Storage
 {
-    /// <summary>
-    /// Secure Storage Service
-    /// </summary>
-    //public class SSS
+    public abstract class SSS
+    {
+        #region Extern methods
+
+        protected abstract string Get(string key);
+        protected abstract void Set(string key, string value);
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        protected static dynamic Base() => BasePrivate();
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        protected static void Base(object value) => BasePrivate(value);
+
+        #endregion
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static dynamic BasePrivate(object value = null)
+        {
+            var methodInfo = GetMethodInfo();
+            
+            var meth = methodInfo.ReflectedType.GetMethod(methodInfo.IsGet ? "Get" : "Set", 
+                BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance);
+
+            if (meth == null)
+                throw new NotImplementedException(
+                    $"Can't find {(methodInfo.IsGet ? "Get" : "Set")} method implementation in your class {methodInfo.ReflectedType}.\n" +
+                    $"Your inheriting class should implement {typeof(ISSS).FullName} interface.\n" +
+                    $"Accessibility Level of {typeof(ISSS).FullName} interface methods can be either public or not public (protected, etc).");
+
+            var instance = meth.IsStatic ? null : Activator.CreateInstance(methodInfo.ReflectedType);
+
+            if (methodInfo.IsGet)
+            {
+                return StringToObject((string)meth.Invoke(instance, new object[] { methodInfo.Name }), methodInfo.Name, methodInfo.Type);
+            }
+            else
+            {
+                return meth.Invoke(instance, new object[] { methodInfo.Name, ObjectToString(value, methodInfo.Name) });
+            }
+        }
+        
+        private static (string Name, Type Type, Type ReflectedType, bool IsGet) GetMethodInfo()
+        {
+            var caller = new StackTrace().GetFrame(3).GetMethod() as MethodInfo;
+
+            return (caller.Name.Remove(0, 4), caller.ReturnType, caller.ReflectedType, caller.ReturnType != typeof(void));
+        }
+
+        private static dynamic StringToObject(string source, string keyToDecrypt, Type type)
+        {
+            if (string.IsNullOrEmpty(source))
+                return Utils.Utils.Internal.CreateDefaultObject(type, true);
+
+            var decrypt = AES.Decrypt(source, keyToDecrypt);
+            return JsonConvert.DeserializeObject(decrypt, type);
+        }
+
+        private static string ObjectToString(object value, string keyToEncrypt)
+        {
+            if (value == null)
+                return null;
+
+            var json = JsonConvert.SerializeObject(value);
+            return AES.Encrypt(json, keyToEncrypt);
+        }
+
+        public interface ISSS
+        {
+            string Get(string key);
+            void Set(string key, string value);
+        }
+        
+        public static class Helpers
+        {
+            public static string BytesToString(byte[] bytes) => Encoding.UTF8.GetString(bytes);
+
+            public static byte[] StringToBytes(string str) =>  Encoding.UTF8.GetBytes(str);
+        }
+    }
+
+    //public interface ISSS
+    //{
+    //    string GetByKey(string key);
+    //}
+
+    ///// <summary>
+    ///// Secure Storage Service
+    ///// </summary>
+    //public abstract class SSS<T> where T : ISSS, new()
     //{
     //    public static void ClearAll(bool soft = false)
     //    {
@@ -33,22 +115,7 @@ namespace PN.Storage
     //            }
     //        }
     //    }
-        
-    //    private class C
-    //    {
-    //        public static string ToString(byte[] bytes)
-    //        {
-    //            return Encoding.UTF8.GetString(bytes);
-    //        }
-    //        public static string ToString(System.IObservable<byte[]> IObytes)
-    //        {
-    //            return ToString(IObytes.Wait());
-    //        }
-    //        public static byte[] ToArray(string str)
-    //        {
-    //            return Encoding.UTF8.GetBytes(str);
-    //        }
-    //    }
+
 
     //    private static dynamic R(string str, string name, Type type)
     //    {
@@ -151,7 +218,19 @@ namespace PN.Storage
     //        }
     //    }
 
+    //    //public static string GetByKey(string key)
+    //    //{
+    //    //    return "";
+
+    //    //    // throw new NotImplementedException("Need override this method according to project/platform specific implementation.");
+    //    //}
+
+            
+
+
     //    public static string Example { get => Get(); set => Set(value); }
     //}
 
 }
+
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member

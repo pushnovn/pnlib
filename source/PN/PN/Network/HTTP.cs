@@ -1,5 +1,4 @@
 ﻿using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using System;
 using System.IO;
 using System.Net;
@@ -9,7 +8,6 @@ using System.Reflection;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
 using System.Runtime.CompilerServices;
 using static PN.Network.HTTP.Entities;
 
@@ -22,16 +20,7 @@ namespace PN.Network
     public class HTTP
     {
         /// <summary>
-        /// Example:
-        /// <example>
-        /// <code>
-        /// <para/>[Url("")]
-        /// <para/>public static RequestEntity Test(RequestEntity ttt) => Base(ttt);
-        /// <para/>
-        /// <para/>[Url("")]
-        /// <para/>public static Task&lt;RequestEntity> TestAsync(RequestEntity ttt) => Base(ttt);
-        /// </code>
-        /// </example>
+        /// Docs (RU) avaliable on http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         protected static dynamic Base(RequestEntity requestModel)
@@ -61,7 +50,7 @@ namespace PN.Network
                 #region URL and request type
 
                 //    Console.WriteLine(methodInfo.MethodFullUrl);
-                var requestUri = new Uri(ProcessComplexString(methodInfo.MethodFullUrl, requestModel));
+                var requestUri = new Uri(Utils.Utils.Internal.ProcessComplexString(methodInfo.MethodFullUrl, requestModel));
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(requestUri);
                 request.Method = methodInfo.RequestType.ToString();
 
@@ -79,7 +68,7 @@ namespace PN.Network
                     if (string.IsNullOrWhiteSpace(header.Key) || string.IsNullOrWhiteSpace(header.Value))
                         continue;
 
-                    request.Headers[header.Key] = ProcessComplexString(header.Value, requestModel);
+                    request.Headers[header.Key] = Utils.Utils.Internal.ProcessComplexString(header.Value, requestModel);
                 }
 
                 #endregion
@@ -116,12 +105,12 @@ namespace PN.Network
                         }
                         catch
                         {
-                            instance = Activator.CreateInstance(methodInfo.ReturnType);
+                            instance = Utils.Utils.Internal.CreateDefaultObject(methodInfo.ReturnType);
                         }
                         
-                        TrySetValue(ref instance, responseJson, nameof(ResponseEntity.ResponseText));
-                        TrySetValue(ref instance, responseBody, nameof(ResponseEntity.ResponseBody));
-                        TrySetValue(ref instance, responseJson, nameof(ResponseEntity.ResponseDynamic), true);
+                        Utils.Utils.Internal.TrySetValue(ref instance, responseJson, nameof(ResponseEntity.ResponseText));
+                        Utils.Utils.Internal.TrySetValue(ref instance, responseBody, nameof(ResponseEntity.ResponseBody));
+                        Utils.Utils.Internal.TrySetValue(ref instance, responseJson, nameof(ResponseEntity.ResponseDynamic), true);
 
                         return (T)instance;
                     }
@@ -131,8 +120,8 @@ namespace PN.Network
             }
             catch (Exception ex)
             {
-                var instance = Activator.CreateInstance(methodInfo.ReturnType);
-                return (T) TrySetValue(ref instance, ex, nameof(ResponseEntity.Exception));
+                var instance = Utils.Utils.Internal.CreateDefaultObject(methodInfo.ReturnType);
+                return (T)Utils.Utils.Internal.TrySetValue(ref instance, ex, nameof(ResponseEntity.Exception));
             }
         }
 
@@ -241,41 +230,6 @@ namespace PN.Network
                 IgnoreGlobalHeaders = ignoreGlobalHeaders != null,
                 HeaderAttributes = headers,
             };
-        }
-
-        private static object TrySetValue(ref object instance, object value, string prop_name, bool TryParse = false)
-        {
-            try
-            {
-                instance.GetType().GetProperty(prop_name).SetValue(instance, TryParse ? JObject.Parse((string)value) : value);
-            }
-            catch { }
-            return instance;
-        }
-
-        private static string ProcessComplexString(string strToProcess, object model)
-        {
-            if (string.IsNullOrWhiteSpace(strToProcess))
-                return string.Empty;
-
-            MatchCollection matches = Regex.Matches(strToProcess, @"\{[\w]+\}");
-
-            var str = strToProcess.Substring(0, matches.Count > 0 ? matches[0].Index : strToProcess.Length);
-
-            for (int i = 0; i < matches.Count; i++)
-            {
-                Match m = matches[i];
-
-                str += model.GetType().GetProperty(m.Value.Substring(1, m.Length - 2))?.GetValue(model) as String ?? m.Value;
-
-                var indexOfLastMatchChar = m.Index + m.Length;
-
-                var nextClearPartLength = -indexOfLastMatchChar + (i + 1 < matches.Count ? matches[i + 1].Index : strToProcess.Length);
-
-                str += strToProcess.Substring(indexOfLastMatchChar, nextClearPartLength);
-            }
-
-            return str;
         }
 
         private static string ContentTypeToString(ContentTypes contentType)

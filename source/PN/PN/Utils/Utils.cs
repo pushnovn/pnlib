@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace PN.Utils
 {
@@ -54,32 +55,34 @@ namespace PN.Utils
         /// <summary>
         /// Logging <paramref name="ex"/> via Debug.WriteLine.
         /// </summary>
-        public static void Log(Exception ex)
+        public static void Log(Exception ex, bool writeInConsole = false)
         {
-            Log(ex?.ToString());
+            Log(ex?.ToString(), writeInConsole);
         }
 
         /// <summary>
         /// Logging <paramref name="obj"/> via Debug.WriteLine.
         /// </summary>
-        public static void Log(object obj)
+        public static void Log(object obj, bool writeInConsole = false)
         {
-            Log(obj == null ? "null" : obj.ToString());
+            Log(obj == null ? "null" : obj.ToString(), writeInConsole);
         }
 
         /// <summary>
         /// Logging <paramref name="str"/> via Debug.WriteLine.
         /// </summary>
-        public static void Log(string str)
+        public static void Log(string str, bool writeInConsole = false)
         {
             System.Diagnostics.Debug.WriteLine($"{DateTime.Now}: {str}");
+            if (writeInConsole)
+                Console.WriteLine($"{DateTime.Now}: {str}");
         }
 
 
         /// <summary>
         /// Try to execute <paramref name="act"/>. Logging error if some exception during the execution.
         /// </summary>
-        public static Exception TryExecute(Action act)
+        public static Exception TryExecute(Action act, bool writeInConsole = false)
         {
             try
             {
@@ -88,7 +91,7 @@ namespace PN.Utils
             }
             catch (Exception ex)
             {
-                Log(ex);
+                Log(ex, writeInConsole);
                 return ex;
             }
         }
@@ -115,6 +118,67 @@ namespace PN.Utils
                 return (num / 1000).ToString("#.0k");
 
             return num.ToString();
+        }
+
+        /// <summary>
+        /// Represents system utils which are should used only in library.
+        /// </summary>
+        internal class Internal
+        {
+            /// <summary>
+            /// Create new object of type = <paramref name="type"/>. May returns null if <paramref name="type"/> has no paramless constructor.
+            /// </summary>
+            internal static object CreateDefaultObject(Type type, bool allowNull = false)
+            {
+                try { return type.IsValueType || allowNull == false ? Activator.CreateInstance(type) : null; }
+                catch { return null; }
+            }
+
+            /// <summary>
+            /// Trying to set <paramref name="value"/> in <paramref name="prop_name"/> to object <paramref name="instance"/>. 
+            /// <paramref name="TryParse"/> is used if you need to set dynamic <paramref name="value"/> to <paramref name="prop_name"/> parsed from JSON.
+            /// </summary>
+            internal static object TrySetValue(ref object instance, object value, string prop_name, bool TryParse = false)
+            {
+                try
+                {
+                    instance
+                        .GetType()
+                        .GetProperty(prop_name)
+                        .SetValue(instance, TryParse ? Newtonsoft.Json.Linq.JObject.Parse((string)value) : value);
+                }
+                catch { }
+                return instance;
+            }
+
+            /// <summary>
+            /// Process <paramref name="strToProcess"/>, search intenal {SOME_STRING} constructions 
+            /// and try to replace it via value of the property of object <paramref name="model"/> with name == SOME_STRING.
+            /// </summary>
+            internal static string ProcessComplexString(string strToProcess, object model)
+            {
+                if (string.IsNullOrWhiteSpace(strToProcess))
+                    return string.Empty;
+
+                MatchCollection matches = Regex.Matches(strToProcess, @"\{[\w]+\}");
+
+                var str = strToProcess.Substring(0, matches.Count > 0 ? matches[0].Index : strToProcess.Length);
+
+                for (int i = 0; i < matches.Count; i++)
+                {
+                    Match m = matches[i];
+
+                    str += model.GetType().GetProperty(m.Value.Substring(1, m.Length - 2))?.GetValue(model) as String ?? m.Value;
+
+                    var indexOfLastMatchChar = m.Index + m.Length;
+
+                    var nextClearPartLength = -indexOfLastMatchChar + (i + 1 < matches.Count ? matches[i + 1].Index : strToProcess.Length);
+
+                    str += strToProcess.Substring(indexOfLastMatchChar, nextClearPartLength);
+                }
+
+                return str;
+            }
         }
     }
 }

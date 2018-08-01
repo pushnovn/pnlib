@@ -1,12 +1,11 @@
 ﻿//using Newtonsoft.Json;
 using PN.Network;
+using PN.Storage;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
+using System.Reflection;
 using System.Threading.Tasks;
 using static PN.Network.HTTP;
 using static PN.Network.HTTP.Entities;
@@ -17,6 +16,8 @@ namespace ConsoleApp1
     {
         static void Main(string[] args)
         {
+            StaticTest2.TestProp = "";
+            Console.WriteLine(StaticTest2.TestProp);
             //API.Init("http://projects.pushnovn.com", new List<HeaderAttribute>()
             //    {
             //        new HeaderAttribute("ppppppppp", "*****************"),
@@ -43,6 +44,18 @@ namespace ConsoleApp1
 
             Task.Run(async () =>
             {
+                var teststr = API_VR.TestString(new VersionRequestModel()
+                {
+                    Token = "p4XsNk3x1WLbmL1WOROBGYEpmN2cjJsXwSSl666Jpe6ZbrUYpWk9z8rnNQFLZVmGeG4TXSef8CvW2GIk3v9y2aLsuAMfgjabYwVbYMLSvLqaOA/bs76wcUxZxYVj4Z4hSlljc2yll5zxTNbIiRqMf2RAKbE5zsVOT56lVrztYNRYDkXzHTNx8XecTUZ3a+RpQJdbifcgVkJJsM3Ze0gePg==",
+                    Version = "123",
+                });
+
+                var testint = API_VR.TestInt(new VersionRequestModel()
+                {
+                    Token = "p4XsNk3x1WLbmL1WOROBGYEpmN2cjJsXwSSl666Jpe6ZbrUYpWk9z8rnNQFLZVmGeG4TXSef8CvW2GIk3v9y2aLsuAMfgjabYwVbYMLSvLqaOA/bs76wcUxZxYVj4Z4hSlljc2yll5zxTNbIiRqMf2RAKbE5zsVOT56lVrztYNRYDkXzHTNx8XecTUZ3a+RpQJdbifcgVkJJsM3Ze0gePg==",
+                    Version = "123",
+                });
+
                 var test00 = await API_VR.Version(new VersionRequestModel()
                 {
                     Token = "p4XsNk3x1WLbmL1WOROBGYEpmN2cjJsXwSSl666Jpe6ZbrUYpWk9z8rnNQFLZVmGeG4TXSef8CvW2GIk3v9y2aLsuAMfgjabYwVbYMLSvLqaOA/bs76wcUxZxYVj4Z4hSlljc2yll5zxTNbIiRqMf2RAKbE5zsVOT56lVrztYNRYDkXzHTNx8XecTUZ3a+RpQJdbifcgVkJJsM3Ze0gePg==",
@@ -60,10 +73,10 @@ namespace ConsoleApp1
                     Token = "p4XsNk3x1WLbmL1WOROBGYEpmN2cjJsXwSSl666Jpe6ZbrUYpWk9z8rnNQFLZVmGeG4TXSef8CvW2GIk3v9y2aLsuAMfgjabYwVbYMLSvLqaOA/bs76wcUxZxYVj4Z4hSlljc2yll5zxTNbIiRqMf2RAKbE5zsVOT56lVrztYNRYDkXzHTNx8XecTUZ3a+RpQJdbifcgVkJJsM3Ze0gePg==",
                     Version = "123",
                 });
-
+                
                 var ttt = Convert.ToBase64String(test01.ResponseBody);
 
-                Console.WriteLine(ttt);
+         //       Console.WriteLine(ttt);
                 //StreamReader reader = new StreamReader(test0.ResponseStream);
                 //string text = reader.ReadToEnd();
 
@@ -91,6 +104,128 @@ namespace ConsoleApp1
         }
     }
 
+
+
+
+
+
+
+
+
+    public class StaticTest
+    {
+        public static void Foo() { Console.WriteLine("Foo 1"); }
+        public static void Bar() { Console.WriteLine("Bar 1"); }
+        public static string Get(string ooo = null)
+        {
+            PN.Utils.Utils.CalculateMethodTimeExecution(() => 
+            {
+                StackTrace st = new StackTrace();
+                StackFrame[] fr = st.GetFrames();
+
+                if (fr == null) return;
+
+                Console.WriteLine($"fr.count = {fr.Count()}");
+
+                for (int i = 0; i < fr.Count(); i++)
+                {
+                    var method = fr[i].GetMethod();
+
+                    var ss = method.ReflectedType.FullName + " :: " + method.Name;
+
+                    //var baseResponseModelType = (method as MethodInfo)?.ReturnType;
+                    //var isGenericType = baseResponseModelType.IsGenericType;
+                    //var responseModelType = isGenericType ? baseResponseModelType.GetGenericArguments()[0] : baseResponseModelType;
+
+                    //var temp_uri = string.Empty;
+                    //var typ = method.ReflectedType;
+                    //while (typ != null)
+                    //{
+                    //    typ = typ.ReflectedType;
+                    //}
+                }
+            }, "for");
+
+
+            var ttest = SSS3.ExampleTest3;
+            SSS3.ExampleTest3 = "ssss oooo pppp";
+            ttest = SSS3.ExampleTest3;
+
+
+
+
+
+
+
+
+            var ttestmodel = SSS3.ExampleTest3Model;
+            SSS3.ExampleTest3Model = new TestModel() { id = "IDDD" };
+            ttestmodel = SSS3.ExampleTest3Model;
+
+
+
+
+
+
+
+
+            var examplInt = SSS2.ExampleInt;
+            var exampl = SSS2.Example;
+
+            SSS2.ExampleInt = 7;
+            examplInt = SSS2.ExampleInt;
+
+            SSS2.Example = "some string";
+            exampl = SSS2.Example;
+
+            MethodBase ttt = null;
+            PN.Utils.Utils.CalculateMethodTimeExecution(() => {
+                 ttt = new StackTrace().GetFrame(3).GetMethod();
+            }, "single");
+            ttt = new StackTrace().GetFrame(1).GetMethod();
+            var ssp = ttt.GetParameters();
+            return ttt.ReflectedType.FullName + " :: " + ttt.Name;
+
+
+            //   var method = typeof(HTTP).GetMethod(nameof(BaseAsyncPrivate), BindingFlags.Public | BindingFlags.Static);
+            Foo();
+            Bar();
+
+            return "";
+        }
+    }
+
+    public class StaticTest2 : StaticTest
+    {
+        public new static void Foo() { Console.WriteLine("Foo 2"); }
+        public static void Some() { Foo(); Bar(); } // Will print Foo 2, Bar 1
+
+        public static string TestProp { get => Get(); set => Get(); }
+    }
+
+
+    public class SSS2 : SSS//, ISSS
+    {
+        public static string Example { get => Base(); set => Base(value); }
+
+        public static int ExampleInt { get => Base(); set => Base(value); }
+
+        private static Dictionary<string, string> dict = new Dictionary<string, string>();
+        protected override string Get(string key) => dict.ContainsKey(key) ? dict[key] : null;
+        protected override void Set(string key, string value) => dict[key] = value;
+    }
+
+    public class SSS3 : SSS2
+    {
+        public static string ExampleTest3 { get => Base(); set => Base(value); }
+        public static TestModel ExampleTest3Model { get => Base(); set => Base(value); }
+    }
+
+
+
+
+
+
     [Url("http://projects.pushnovn.com/pn/")]
     public class API_test : HTTP
     {
@@ -107,7 +242,15 @@ namespace ConsoleApp1
 
     [Url("http://videoreg.pushnovn.com:1337/api")]
     public class API_VR : HTTP
-    { 
+    {
+        [RequestType(RequestTypes.GET)]
+        [Url("Version?Version={Version}&Token={Token}")]
+        public static string TestString(VersionRequestModel ttt) => Base(ttt);
+
+        [RequestType(RequestTypes.GET)]
+        [Url("Version?Version={Version}&Token={Token}")]
+        public static int TestInt(VersionRequestModel ttt) => Base(ttt);
+
         [RequestType(RequestTypes.GET)]
         [Url("Version?Version={Version}&Token={Token}")]
         public static Task<VersionResponseModel> Version(VersionRequestModel ttt) => Base(ttt);
