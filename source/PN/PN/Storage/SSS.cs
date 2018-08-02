@@ -2,11 +2,10 @@
 using System.Diagnostics;
 using System.Reflection;
 using Newtonsoft.Json;
-using System.Text;
 using PN.Crypt;
 using System;
-using System.Linq.Expressions;
 using System.Linq;
+using System.Collections.Generic;
 
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 namespace PN.Storage
@@ -31,12 +30,12 @@ namespace PN.Storage
         {
             var methodInfo = GetMethodInfo();
             
-            var meth = methodInfo.ReflectedType.GetMethod(methodInfo.IsGet ? "Get" : "Set", 
+            var meth = methodInfo.ReflectedType.GetMethod(methodInfo.IsGet ? nameof(Get) : nameof(Set), 
                 BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance);
 
             if (meth == null)
                 throw new NotImplementedException(
-                    $"Can't find {(methodInfo.IsGet ? "Get" : "Set")} method implementation in your class {methodInfo.ReflectedType}.\n" +
+                    $"Can't find {(methodInfo.IsGet ? nameof(Get) : nameof(Set))} method implementation in your class {methodInfo.ReflectedType}.\n" +
                     $"Your inheriting class should implement {typeof(ISSS).FullName} interface.\n" +
                     $"Accessibility Level of {typeof(ISSS).FullName} interface methods can be either public or not public (protected, etc).");
 
@@ -66,8 +65,8 @@ namespace PN.Storage
 
             var real_key = 
                 (useDefaultCryptKey ? caller.Name.Remove(0, 4) : null) ??
-                GetValueOfStringByName<string>(propertyKey, caller.ReflectedType) ??
-                GetValueOfStringByName<string>(reflectedKey, caller.ReflectedType) ??
+                (propertyKey == null ? null : GetValueOfStringByName<string>(propertyKey, caller.ReflectedType)) ??
+                (reflectedKey == null ? null : GetValueOfStringByName<string>(reflectedKey, caller.ReflectedType)) ??
                 caller.Name.Remove(0, 4);
 
             return (caller.Name.Remove(0, 4), caller.ReturnType, caller.ReflectedType, caller.ReturnType != typeof(void), real_key);
@@ -93,6 +92,19 @@ namespace PN.Storage
             return (T)value;
         }
 
+        private static void SetValueOfStringByName<T>(string propName, string newValue)
+        {
+            var prop = typeof(T).GetProperty(propName ?? string.Empty, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+
+            var field = typeof(T).GetField(propName ?? string.Empty, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+
+            if (prop == null && field == null)
+                throw new NullReferenceException($"Field or property '{propName}' not found in '{typeof(T)}'.");
+
+            prop?.SetValue(null, newValue);
+            field?.SetValue(null, newValue);
+        }
+
         private static dynamic StringToObject(string source, string keyToDecrypt, Type type)
         {
             if (string.IsNullOrEmpty(source))
@@ -115,6 +127,59 @@ namespace PN.Storage
         public static void Init(string keyToEncrypt)
         {
             CryptoKey = AES.SHA256Hash(keyToEncrypt);
+        }
+
+        /// <summary>
+        /// Recrypt all static props in class, if class attribute is set and prop has no custom crypt key.
+        /// </summary>
+        public static void ReCrypt<T>(string newPassword)
+        {
+            if (string.IsNullOrEmpty(newPassword))
+                return;
+
+            var allProps = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Static);
+            if (allProps == null || allProps.Count() == 0)
+                return;
+
+            var globalClassKey = typeof(T).GetCustomAttributes()?.OfType<CryptKeyAttribute>()?.FirstOrDefault()?.Key;
+            if (string.IsNullOrEmpty(globalClassKey))
+                return;
+
+            var filteredProps = new List<PropertyInfo>();
+            foreach (var prop in allProps)
+            {
+                var useDefaultCryptKey = prop?.GetCustomAttributes()?.OfType<DefaultCryptKeyAttribute>()?.FirstOrDefault() != null;
+                if (useDefaultCryptKey)
+                    continue;
+
+                var propertyKey = prop?.GetCustomAttributes()?.OfType<CryptKeyAttribute>()?.FirstOrDefault()?.Key;
+                if (string.IsNullOrEmpty(propertyKey) == false)
+                    continue;
+
+                filteredProps.Add(prop);
+            }
+
+            if (filteredProps.Count == 0)
+                return;
+
+            var sha256NewPass = AES.SHA256Hash(newPassword);
+
+            var methodSet = typeof(T).GetMethod(nameof(Set), 
+                BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance);
+            if (methodSet == null)
+                throw new NotImplementedException(
+                    $"Can't find {nameof(Set)} method implementation in your class {typeof(T)}.\n" +
+                    $"Your inheriting class should implement {typeof(ISSS).FullName} interface.\n" +
+                    $"Accessibility Level of {typeof(ISSS).FullName} interface methods can be either public or not public (protected, etc).");
+
+            var methodInstance = methodSet.IsStatic ? null : Activator.CreateInstance(typeof(T));
+
+            foreach (var prop in filteredProps)
+            {
+                methodSet.Invoke(methodInstance, new object[] { prop.Name, ObjectToString(prop.GetValue(null), sha256NewPass) });
+            }
+
+            SetValueOfStringByName<T>(globalClassKey, sha256NewPass);
         }
 
         #region Attributes

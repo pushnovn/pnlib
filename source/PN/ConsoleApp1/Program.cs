@@ -146,6 +146,19 @@ namespace ConsoleApp1
                 }
             }, "for");
 
+            var ddd = SSS2.dict;
+
+            var key1 = SSS3.tempkey;
+            SSS3.ExampleTestReCrypt = new TestModel() { id = "ExampleTestReCrypt" };
+
+            SSS3.ReCrypt<SSS3>("some new cryptostring");
+
+            var key2 = SSS3.tempkey;
+            var testExampleTestReCrypt = SSS3.ExampleTestReCrypt;
+
+
+
+
             SSS3.ExampleTest3Model = new TestModel() { id = "IDDD" };
 
             var ttest = SSS3.ExampleTest3;
@@ -211,22 +224,33 @@ namespace ConsoleApp1
 
         public static int ExampleInt { get => Base(); set => Base(value); }
 
-        private static Dictionary<string, string> dict = new Dictionary<string, string>();
+        public static Dictionary<string, string> dict = new Dictionary<string, string>();
         protected override string Get(string key) => dict.ContainsKey(key) ? dict[key] : null;
         protected override void Set(string key, string value) => dict[key] = value;
     }
 
   //  [CryptKey(nameof(asd))]
-    [CryptKey(nameof(asdProp))]
+    //[CryptKey(nameof(asdProp))]
+    [CryptKey(nameof(ExampleTestReCryptKEY))]
     public class SSS3 : SSS2
     {
         private static string asd = "ASD CLASS value";
         private static string asd2 = "asd2 value";
+        [DefaultCryptKey]
         private static string asdProp => "PROOOOOOP ASD CLASS value";
+        [DefaultCryptKey]
         private static string Asd2Prop => "PROOOOOOP asd2 value";
 
+        [DefaultCryptKey]
+        public static string tempkey => ExampleTestReCryptKEY;
 
-      //  [DefaultCryptKey]
+        [DefaultCryptKey]
+        private static string ExampleTestReCryptKEY { get; set; } = "some crypt key...";
+
+        public static TestModel ExampleTestReCrypt { get => Base(); set => Base(value); }
+
+
+        //  [DefaultCryptKey]
         // [CryptKey(nameof(asd2))]
         [CryptKey(nameof(ExampleTest3Model)+"as")]
         public static string ExampleTest3 { get => Base(); set => Base(value); }
