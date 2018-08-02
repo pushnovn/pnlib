@@ -33,18 +33,9 @@ namespace PN.Network
 
             return methodInfo.IsGenericType ? task : task.GetType().GetProperty(nameof(Task<dynamic>.Result)).GetValue(task, null);
         }
-
-     //   [MethodImpl(MethodImplOptions.NoInlining)]
+        
         private static async Task<T> BaseAsyncPrivate<T>(RequestEntity requestModel, ReflMethodInfo methodInfo)
         {
-            //if (propertyName != null)
-            //    Console.WriteLine("propertyName = " + propertyName);
-            //Console.WriteLine("current method:");
-            //var mm = MethodBase.GetCurrentMethod();
-            //Console.WriteLine(mm.ReflectedType.DeclaringType);
-
-            //       Console.WriteLine(JsonConvert.SerializeObject( WWWW_CustomAttribute.ppp));
-
             try
             {
                 #region URL and request type
@@ -95,7 +86,7 @@ namespace PN.Network
                 {
                     using (Stream responseStream = response.GetResponseStream())
                     {
-                        var responseBody = Utils.Utils.StreamToByteArray(responseStream);
+                        var responseBody = Utils.Utils.Converters.StreamToBytes(responseStream);
                         var responseJson = Encoding.UTF8.GetString(responseBody);
 
                         object instance;

@@ -5,6 +5,8 @@ using Newtonsoft.Json;
 using System.Text;
 using PN.Crypt;
 using System;
+using System.Linq.Expressions;
+using System.Linq;
 
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 namespace PN.Storage
@@ -42,19 +44,53 @@ namespace PN.Storage
 
             if (methodInfo.IsGet)
             {
-                return StringToObject((string)meth.Invoke(instance, new object[] { methodInfo.Name }), methodInfo.Name, methodInfo.Type);
+                return StringToObject((string)meth.Invoke(instance, new object[] { methodInfo.Name }), methodInfo.CryptKey, methodInfo.Type);
             }
             else
             {
-                return meth.Invoke(instance, new object[] { methodInfo.Name, ObjectToString(value, methodInfo.Name) });
+                return meth.Invoke(instance, new object[] { methodInfo.Name, ObjectToString(value, methodInfo.CryptKey) });
             }
         }
         
-        private static (string Name, Type Type, Type ReflectedType, bool IsGet) GetMethodInfo()
+        private static (string Name, Type Type, Type ReflectedType, bool IsGet, string CryptKey) GetMethodInfo()
         {
             var caller = new StackTrace().GetFrame(3).GetMethod() as MethodInfo;
+            
+            var propertyInfo = caller.ReflectedType.GetProperties(
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance)
+                                       .FirstOrDefault(p => p.Name == caller.Name.Remove(0, 4));
+            
+            var reflectedKey = propertyInfo?.ReflectedType.GetCustomAttributes()?.OfType<CryptKeyAttribute>()?.FirstOrDefault()?.Key;
+            var propertyKey = propertyInfo?.GetCustomAttributes()?.OfType<CryptKeyAttribute>()?.FirstOrDefault()?.Key;
+            var useDefaultCryptKey = propertyInfo?.GetCustomAttributes()?.OfType<DefaultCryptKeyAttribute>()?.FirstOrDefault() != null;
 
-            return (caller.Name.Remove(0, 4), caller.ReturnType, caller.ReflectedType, caller.ReturnType != typeof(void));
+            var real_key = 
+                (useDefaultCryptKey ? caller.Name.Remove(0, 4) : null) ??
+                GetValueOfStringByName<string>(propertyKey, caller.ReflectedType) ??
+                GetValueOfStringByName<string>(reflectedKey, caller.ReflectedType) ??
+                caller.Name.Remove(0, 4);
+
+            return (caller.Name.Remove(0, 4), caller.ReturnType, caller.ReflectedType, caller.ReturnType != typeof(void), real_key);
+        }
+
+        private static T GetValueOfStringByName<T>(String name, Type reflectedType)
+        {
+            var prop = reflectedType.GetProperty(name ?? string.Empty, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+
+            var field = reflectedType.GetField(name ?? string.Empty, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+
+            var value = prop?.GetValue(null) ?? field?.GetValue(null);
+
+            if (prop == null && field == null)
+                throw new NullReferenceException($"Field or property '{name}' not found in '{reflectedType}'.");
+
+            if (value == null)
+                throw new NullReferenceException($"Field or property '{name}' returns null.");
+
+            if (value.GetType() != typeof(string))
+                throw new ArgumentException($"Field or property '{name}' should be type of string, not '{value.GetType()}'.");
+
+            return (T)value;
         }
 
         private static dynamic StringToObject(string source, string keyToDecrypt, Type type)
@@ -75,18 +111,32 @@ namespace PN.Storage
             return AES.Encrypt(json, keyToEncrypt);
         }
 
+        private static string CryptoKey { get; set; }
+        public static void Init(string keyToEncrypt)
+        {
+            CryptoKey = AES.SHA256Hash(keyToEncrypt);
+        }
+
+        #region Attributes
+
+        [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
+        protected class CryptKeyAttribute : Attribute
+        {
+            public string Key { get; set; }
+            public CryptKeyAttribute(string key) { Key = key; }
+        }
+
+        [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
+        protected class DefaultCryptKeyAttribute : Attribute { }
+
+        #endregion
+
         public interface ISSS
         {
             string Get(string key);
             void Set(string key, string value);
         }
-        
-        public static class Helpers
-        {
-            public static string BytesToString(byte[] bytes) => Encoding.UTF8.GetString(bytes);
 
-            public static byte[] StringToBytes(string str) =>  Encoding.UTF8.GetBytes(str);
-        }
     }
 
     //public interface ISSS

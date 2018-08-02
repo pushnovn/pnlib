@@ -2,9 +2,9 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <AssemblyVersion>0.1.2.6</AssemblyVersion>
-    <FileVersion>0.1.2.6</FileVersion>
-    <Version>0.1.2.6</Version>
+    <AssemblyVersion>0.1.2.7</AssemblyVersion>
+    <FileVersion>0.1.2.7</FileVersion>
+    <Version>0.1.2.7</Version>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <Company>Pushnovn</Company>
     <PackageProjectUrl>http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http</PackageProjectUrl>

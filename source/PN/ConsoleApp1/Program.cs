@@ -118,7 +118,7 @@ namespace ConsoleApp1
         public static void Bar() { Console.WriteLine("Bar 1"); }
         public static string Get(string ooo = null)
         {
-            PN.Utils.Utils.CalculateMethodTimeExecution(() => 
+            PN.Utils.Utils.Debug.CalculateMethodTimeExecution(() => 
             {
                 StackTrace st = new StackTrace();
                 StackFrame[] fr = st.GetFrames();
@@ -146,12 +146,13 @@ namespace ConsoleApp1
                 }
             }, "for");
 
+            SSS3.ExampleTest3Model = new TestModel() { id = "IDDD" };
 
             var ttest = SSS3.ExampleTest3;
             SSS3.ExampleTest3 = "ssss oooo pppp";
             ttest = SSS3.ExampleTest3;
 
-
+            var uio = PN.Utils.Utils.Converters.NumberToShortFormattedString(8);
 
 
 
@@ -179,7 +180,7 @@ namespace ConsoleApp1
             exampl = SSS2.Example;
 
             MethodBase ttt = null;
-            PN.Utils.Utils.CalculateMethodTimeExecution(() => {
+            PN.Utils.Utils.Debug.CalculateMethodTimeExecution(() => {
                  ttt = new StackTrace().GetFrame(3).GetMethod();
             }, "single");
             ttt = new StackTrace().GetFrame(1).GetMethod();
@@ -215,9 +216,22 @@ namespace ConsoleApp1
         protected override void Set(string key, string value) => dict[key] = value;
     }
 
+  //  [CryptKey(nameof(asd))]
+    [CryptKey(nameof(asdProp))]
     public class SSS3 : SSS2
     {
+        private static string asd = "ASD CLASS value";
+        private static string asd2 = "asd2 value";
+        private static string asdProp => "PROOOOOOP ASD CLASS value";
+        private static string Asd2Prop => "PROOOOOOP asd2 value";
+
+
+      //  [DefaultCryptKey]
+        // [CryptKey(nameof(asd2))]
+        [CryptKey(nameof(ExampleTest3Model)+"as")]
         public static string ExampleTest3 { get => Base(); set => Base(value); }
+
+        [DefaultCryptKey]
         public static TestModel ExampleTest3Model { get => Base(); set => Base(value); }
     }
 
