@@ -30,24 +30,15 @@ namespace PN.Storage
         {
             var methodInfo = GetMethodInfo();
             
-            var meth = methodInfo.ReflectedType.GetMethod(methodInfo.IsGet ? nameof(Get) : nameof(Set), 
-                BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance);
-
-            if (meth == null)
-                throw new NotImplementedException(
-                    $"Can't find {(methodInfo.IsGet ? nameof(Get) : nameof(Set))} method implementation in your class {methodInfo.ReflectedType}.\n" +
-                    $"Your inheriting class should implement {typeof(ISSS).FullName} interface.\n" +
-                    $"Accessibility Level of {typeof(ISSS).FullName} interface methods can be either public or not public (protected, etc).");
-
-            var instance = meth.IsStatic ? null : Activator.CreateInstance(methodInfo.ReflectedType);
+            var method = GetInternalMethodByName(methodInfo.IsGet, methodInfo.ReflectedType);
 
             if (methodInfo.IsGet)
             {
-                return StringToObject((string)meth.Invoke(instance, new object[] { methodInfo.Name }), methodInfo.CryptKey, methodInfo.Type);
+                return StringToObject((string)method.Method.Invoke(method.MethodInstance, new object[] { methodInfo.Name }), methodInfo.CryptKey, methodInfo.Type);
             }
             else
             {
-                return meth.Invoke(instance, new object[] { methodInfo.Name, ObjectToString(value, methodInfo.CryptKey) });
+                return method.Method.Invoke(method.MethodInstance, new object[] { methodInfo.Name, ObjectToString(value, methodInfo.CryptKey) });
             }
         }
         
@@ -123,14 +114,8 @@ namespace PN.Storage
             return AES.Encrypt(json, keyToEncrypt);
         }
 
-        private static string CryptoKey { get; set; }
-        public static void Init(string keyToEncrypt)
-        {
-            CryptoKey = AES.SHA256Hash(keyToEncrypt);
-        }
-
         /// <summary>
-        /// Recrypt all static props in class, if class attribute is set and prop has no custom crypt key.
+        /// Recrypt all static properties in class, if class attribute is set and property has no their own crypt key.
         /// </summary>
         public static void ReCrypt<T>(string newPassword)
         {
@@ -164,22 +149,30 @@ namespace PN.Storage
 
             var sha256NewPass = AES.SHA256Hash(newPassword);
 
-            var methodSet = typeof(T).GetMethod(nameof(Set), 
-                BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance);
-            if (methodSet == null)
-                throw new NotImplementedException(
-                    $"Can't find {nameof(Set)} method implementation in your class {typeof(T)}.\n" +
-                    $"Your inheriting class should implement {typeof(ISSS).FullName} interface.\n" +
-                    $"Accessibility Level of {typeof(ISSS).FullName} interface methods can be either public or not public (protected, etc).");
-
-            var methodInstance = methodSet.IsStatic ? null : Activator.CreateInstance(typeof(T));
-
+            var methodInfo = GetInternalMethodByName(nameof(Set), typeof(T));
+            
             foreach (var prop in filteredProps)
             {
-                methodSet.Invoke(methodInstance, new object[] { prop.Name, ObjectToString(prop.GetValue(null), sha256NewPass) });
+                methodInfo.Method.Invoke(methodInfo.MethodInstance, new object[] { prop.Name, ObjectToString(prop.GetValue(null), sha256NewPass) });
             }
 
             SetValueOfStringByName<T>(globalClassKey, sha256NewPass);
+        }
+
+        private static (MethodInfo Method, object MethodInstance) GetInternalMethodByName(bool isGet, Type inheritClassType) =>
+            GetInternalMethodByName(isGet ? nameof(Get) : nameof(Set), inheritClassType);
+
+        private static (MethodInfo Method, object MethodInstance) GetInternalMethodByName(string name, Type inheritClassType)
+        {
+            var methodInfo = inheritClassType.GetMethod(name,
+                BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance);
+            if (methodInfo == null)
+                throw new NotImplementedException(
+                    $"Can't find {name} method implementation in your class {inheritClassType}.\n");
+
+            var methodInstance = methodInfo.IsStatic ? null : Activator.CreateInstance(inheritClassType);
+
+            return (methodInfo, methodInstance);
         }
 
         #region Attributes
@@ -195,13 +188,6 @@ namespace PN.Storage
         protected class DefaultCryptKeyAttribute : Attribute { }
 
         #endregion
-
-        public interface ISSS
-        {
-            string Get(string key);
-            void Set(string key, string value);
-        }
-
     }
 
     //public interface ISSS
