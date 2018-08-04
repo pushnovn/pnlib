@@ -82,7 +82,7 @@ namespace PN.Network
 
                 #region Execute request
 
-                using (WebResponse response = await request.GetResponseAsync())
+                using (HttpWebResponse response = (HttpWebResponse) await request.GetResponseAsync())
                 {
                     using (Stream responseStream = response.GetResponseStream())
                     {
@@ -98,12 +98,13 @@ namespace PN.Network
                         {
                             instance = Utils.Utils.Internal.CreateDefaultObject(methodInfo.ReturnType);
                         }
-                        
+
+                        Utils.Utils.Internal.TrySetValue(ref instance, (int) response.StatusCode, nameof(ResponseEntity.HttpCode));
                         Utils.Utils.Internal.TrySetValue(ref instance, responseJson, nameof(ResponseEntity.ResponseText));
                         Utils.Utils.Internal.TrySetValue(ref instance, responseBody, nameof(ResponseEntity.ResponseBody));
                         Utils.Utils.Internal.TrySetValue(ref instance, responseJson, nameof(ResponseEntity.ResponseDynamic), true);
 
-                        return (T)instance;
+                        return (T) instance;
                     }
                 }
 
@@ -112,7 +113,7 @@ namespace PN.Network
             catch (Exception ex)
             {
                 var instance = Utils.Utils.Internal.CreateDefaultObject(methodInfo.ReturnType);
-                return (T)Utils.Utils.Internal.TrySetValue(ref instance, ex, nameof(ResponseEntity.Exception));
+                return (T) Utils.Utils.Internal.TrySetValue(ref instance, ex, nameof(ResponseEntity.Exception));
             }
         }
 
