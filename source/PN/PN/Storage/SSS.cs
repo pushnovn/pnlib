@@ -54,7 +54,7 @@ namespace PN.Storage
 
             var real_key = useDefaultCryptKey ?
                 $"{caller.ReflectedType.FullName}_+_{caller.Name.Remove(0, 4)}" :
-                CryptKeySettings.FirstOrDefault(i => i.InheritType == caller.ReflectedType).CryptKey;
+                CryptKeySettings.FirstOrDefault(i => i.InheritType == caller.ReflectedType).CryptKeyHash;
 
             //var real_key = 
             //    (useDefaultCryptKey ? caller.Name.Remove(0, 4) : null) ??
@@ -263,6 +263,22 @@ namespace PN.Storage
             }
         }
 
+        public static bool CheckPassword<T>(string password)
+        {
+#if !DEBUG
+            return false;
+#endif
+
+            var getMethod = GetInternalMethodByName(true, typeof(T));
+
+            var pathToAttempSetting = AES.SHA256Hash(typeof(T).FullName + "AttempSetting");
+            var attempSettingString = (string)getMethod.Method.Invoke(getMethod.MethodInstance, new object[] { pathToAttempSetting });
+
+            var attempSetting = (AttempSetting)StringToObject(attempSettingString, pathToAttempSetting, typeof(AttempSetting));
+
+            return CheckPassword(password, attempSetting);
+        }
+
         private static bool CheckPassword(string password, AttempSetting attempSetting)
         {
             try
@@ -322,10 +338,25 @@ namespace PN.Storage
 
             foreach (var prop in filteredProps)
             {
-                methodInfo.Method.Invoke(methodInfo.MethodInstance, new object[] { prop.Name, ObjectToString(prop.GetValue(null), AES.SHA256Hash(newPassword)) });
+                var propNewValue = prop.GetValue(null);
+                methodInfo.Method.Invoke(methodInfo.MethodInstance, new object[] {
+                    typeof(T).FullName + "_+_" + prop.Name, ObjectToString(prop.GetValue(null), AES.SHA256Hash(newPassword)) });
             }
 
             CryptKeySettings[CryptKeySettings.IndexOf(CryptKeySettings.FirstOrDefault(s => s.InheritType == typeof(T)))].CryptKey = newPassword;
+
+            
+            // ================================================================================
+            var getMethod = GetInternalMethodByName(true, typeof(T));
+            var setMethod = GetInternalMethodByName(false, typeof(T));
+
+            var pathToAttempSetting = AES.SHA256Hash(typeof(T).FullName + "AttempSetting");
+            var attempSettingString = (string)getMethod.Method.Invoke(getMethod.MethodInstance, new object[] { pathToAttempSetting });
+               
+            var attempSetting = (AttempSetting)StringToObject(attempSettingString, pathToAttempSetting, typeof(AttempSetting));
+            attempSetting.LastUpdateDate = AES.Encrypt(DateTime.Now.ToString(), AES.SHA256Hash(newPassword));
+            setMethod.Method.Invoke(setMethod.MethodInstance, new object[] { pathToAttempSetting, ObjectToString(attempSetting, pathToAttempSetting) });
+            // ================================================================================
         }
 
         public static void ClearAll<T>(bool SoftClearing = false)

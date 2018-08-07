@@ -146,22 +146,25 @@ namespace ConsoleApp1
 
             var ddd = SSS2.dict;
 
-            var key1 = SSS3.tempkey;
+            SSS3.Auth<SSS3>("some auth pass");
+
+            var ch1 = SSS3.CheckPassword<SSS3>("some auth pass");
+            var ch2 = SSS3.CheckPassword<SSS3>("some auth pass 2");
+
             SSS3.ExampleTestReCrypt = new TestModel() { id = "ExampleTestReCrypt" };
 
-            SSS3.ReCrypt<SSS3>("some new cryptostring");
+            SSS3.ExampleTest3Model = new TestModel() { id = "IDDD" };
 
-            var key2 = SSS3.tempkey;
+            SSS3.UpdatePasswordAndReCrypt<SSS3>("some new cryptostring");
+            
+            var ch3 = SSS3.CheckPassword<SSS3>("some new cryptostring");
+            var ch4 = SSS3.CheckPassword<SSS3>("some auth pass");
+
             var testExampleTestReCrypt = SSS3.ExampleTestReCrypt;
 
 
 
 
-            SSS3.ExampleTest3Model = new TestModel() { id = "IDDD" };
-
-            var ttest = SSS3.ExampleTest3;
-            SSS3.ExampleTest3 = "ssss oooo pppp";
-            ttest = SSS3.ExampleTest3;
 
             var uio = PN.Utils.Utils.Converters.NumberToShortFormattedString(8);
 
@@ -248,32 +251,14 @@ namespace ConsoleApp1
         protected override string Get(string key) => dict.ContainsKey(key) ? dict[key] : null;
         protected override void Set(string key, string value) => dict[key] = value;
     }
-
-  //  [CryptKey(nameof(asd))]
-    //[CryptKey(nameof(asdProp))]
-    [CryptKey(nameof(ExampleTestReCryptKEY))]
+    
     public class SSS3 : SSS2
     {
-        private static string asd = "ASD CLASS value";
-        private static string asd2 = "asd2 value";
         [DefaultCryptKey]
-        private static string asdProp => "PROOOOOOP ASD CLASS value";
-        [DefaultCryptKey]
-        private static string Asd2Prop => "PROOOOOOP asd2 value";
-
-        [DefaultCryptKey]
-        public static string tempkey => ExampleTestReCryptKEY;
-
-        [DefaultCryptKey]
+        [IsResistantToSoftRemoval]
         private static string ExampleTestReCryptKEY { get; set; } = "some crypt key...";
 
         public static TestModel ExampleTestReCrypt { get => Base(); set => Base(value); }
-
-
-        //  [DefaultCryptKey]
-        // [CryptKey(nameof(asd2))]
-        [CryptKey(nameof(ExampleTest3Model)+"as")]
-        public static string ExampleTest3 { get => Base(); set => Base(value); }
 
         [DefaultCryptKey]
         public static TestModel ExampleTest3Model { get => Base(); set => Base(value); }
