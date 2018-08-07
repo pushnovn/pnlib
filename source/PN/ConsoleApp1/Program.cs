@@ -16,8 +16,8 @@ namespace ConsoleApp1
     {
         static void Main(string[] args)
         {
-            StaticTest2.TestProp = "";
-            Console.WriteLine(StaticTest2.TestProp);
+        //    StaticTest2.TestProp = "";
+        //    Console.WriteLine(StaticTest2.TestProp);
             //API.Init("http://projects.pushnovn.com", new List<HeaderAttribute>()
             //    {
             //        new HeaderAttribute("ppppppppp", "*****************"),
@@ -33,17 +33,25 @@ namespace ConsoleApp1
                 }
             };
 
-        //    var ppp = API.Testtt.TestAsync(mod).Result;
-        //    var ppp = API.Testtt.Test(mod);
+            //    var ppp = API.Testtt.TestAsync(mod).Result;
+            //    var ppp = API.Testtt.Test(mod);
 
-          
-        //    Console.WriteLine(ppp.Exception?.ToString() ?? ppp.id);
+
+            //    Console.WriteLine(ppp.Exception?.ToString() ?? ppp.id);
 
             //        var ttt = API.Testtt.TestAsync(mod).Result;
             //        var ttt2 = API.Testtt.Test(mod);
 
+            StaticTest.Get();
+
+            while (true)
+                Console.ReadLine();
+
             Task.Run(async () =>
             {
+                var typ = await API___.Files(new FilesRequestModel());
+
+            //    var files = JsonConvert.DeserializeObject(respone.ResponseText, typeof(List<ServerFileInfo>));
                 var teststr = API_VR.TestString(new VersionRequestModel()
                 {
                     Token = "p4XsNk3x1WLbmL1WOROBGYEpmN2cjJsXwSSl666Jpe6ZbrUYpWk9z8rnNQFLZVmGeG4TXSef8CvW2GIk3v9y2aLsuAMfgjabYwVbYMLSvLqaOA/bs76wcUxZxYVj4Z4hSlljc2yll5zxTNbIiRqMf2RAKbE5zsVOT56lVrztYNRYDkXzHTNx8XecTUZ3a+RpQJdbifcgVkJJsM3Ze0gePg==",
@@ -99,23 +107,13 @@ namespace ConsoleApp1
 
             });
 
-            while (true)
-                Console.ReadLine();
         }
     }
 
-
-
-
-
-
-
-
+    
 
     public class StaticTest
     {
-        public static void Foo() { Console.WriteLine("Foo 1"); }
-        public static void Bar() { Console.WriteLine("Bar 1"); }
         public static string Get(string ooo = null)
         {
             PN.Utils.Utils.Debug.CalculateMethodTimeExecution(() => 
@@ -200,23 +198,45 @@ namespace ConsoleApp1
             var ssp = ttt.GetParameters();
             return ttt.ReflectedType.FullName + " :: " + ttt.Name;
 
-
-            //   var method = typeof(HTTP).GetMethod(nameof(BaseAsyncPrivate), BindingFlags.Public | BindingFlags.Static);
-            Foo();
-            Bar();
-
-            return "";
         }
     }
 
-    public class StaticTest2 : StaticTest
-    {
-        public new static void Foo() { Console.WriteLine("Foo 2"); }
-        public static void Some() { Foo(); Bar(); } // Will print Foo 2, Bar 1
+    
+        [Url("http://videoreg.pushnovn.com:1583/api/Files?Version=%7BVersion%7D&Token=jICmeDBf2e2vyfCkzlI87P1eG/PIQFjFeanVrXxgj7nr+o7T4LiNYWArvbOU3SrCIrcc2aAjNN4zIA6LgJmMmtfyGm/1SShlVZ7cStft6LblcjXg3Q0CIMkdSUtQ5sQy44WWoU4X7KLC3oiRNbyg4sJeGGta3qmxEK+v7VXTJmQ06R5yRCpF27LANQ8YVT4AXAK")]
+        public class API___ : HTTP
+        {
+            [RequestType(RequestTypes.GET)]
+            [Url("kE5lGUznLKEiGvGFig==")]
+            public static Task<List<ServerFileInfo>> Files(FilesRequestModel ttt) => Base(ttt);
+        }
 
-        public static string TestProp { get => Get(); set => Get(); }
-    }
+        public class FilesRequestModel : PN.Network.HTTP.Entities.RequestEntity
+        {
+            //[JsonIgnore]
+            //public string Version { get; set; }
+            //[JsonIgnore]
+            //public string Token { get; set; }
 
+        }
+        public class FilesResponseModel //: PN.Network.HTTP.Entities.ResponseEntity
+        {
+            public List<ServerFileInfo> Files { get; set; }
+        }
+
+        public class ServerFileInfo
+        {
+            public string OriginalName { get; set; }
+            public string MD5 { get; set; }
+            public string URI { get; set; }
+            public string FuturePath { get; set; }
+            public string PathOnServer { get; set; }
+            public string toke { get; set; }
+            public long FileSize { get; set; }
+            public bool IsDownloaded { get; set; }
+        }
+    
+
+    
 
     public class SSS2 : SSS//, ISSS
     {
@@ -298,7 +318,7 @@ namespace ConsoleApp1
     {
    //     [JsonIgnore]
         public string Version { get; set; }
-   //     [JsonIgnore]
+ //       [JsonIgnore]
         public string Token { get; set; }
     }
     public class VersionResponseModel : Entities.ResponseEntity

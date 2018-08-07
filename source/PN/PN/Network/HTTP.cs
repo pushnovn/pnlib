@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+﻿using InternalNewtonsoft.Json;
 using System;
 using System.IO;
 using System.Net;
@@ -88,19 +88,22 @@ namespace PN.Network
                     {
                         var responseBody = Utils.Utils.Converters.StreamToBytes(responseStream);
                         var responseJson = Encoding.UTF8.GetString(responseBody);
+                        LastResponse = new ResponseEntity() { ResponseBody = responseBody, ResponseText = responseJson };
 
                         object instance;
                         try
                         {
                             instance = JsonConvert.DeserializeObject(responseJson, methodInfo.ReturnType);
                         }
-                        catch
+                        catch (Exception exc)
                         {
                             instance = Utils.Utils.Internal.CreateDefaultObject(methodInfo.ReturnType);
+                            Utils.Utils.Internal.TrySetValue(ref instance, exc, nameof(ResponseEntity.Exception));
+                            LastResponse.Exception = exc;
                         }
-                        
-                        Utils.Utils.Internal.TrySetValue(ref instance, responseJson, nameof(ResponseEntity.ResponseText));
+
                         Utils.Utils.Internal.TrySetValue(ref instance, responseBody, nameof(ResponseEntity.ResponseBody));
+                        Utils.Utils.Internal.TrySetValue(ref instance, responseJson, nameof(ResponseEntity.ResponseText));
                         Utils.Utils.Internal.TrySetValue(ref instance, responseJson, nameof(ResponseEntity.ResponseDynamic), true);
 
                         return (T)instance;
@@ -111,6 +114,7 @@ namespace PN.Network
             }
             catch (Exception ex)
             {
+                LastResponse = new ResponseEntity() { Exception = ex };
                 var instance = Utils.Utils.Internal.CreateDefaultObject(methodInfo.ReturnType);
                 return (T)Utils.Utils.Internal.TrySetValue(ref instance, ex, nameof(ResponseEntity.Exception));
             }
@@ -314,6 +318,8 @@ namespace PN.Network
 
         #region Props and fields
         
+        public static ResponseEntity LastResponse { get; private set; }
+
         private static string _baseUrl;
         private static string BaseUrl
         {

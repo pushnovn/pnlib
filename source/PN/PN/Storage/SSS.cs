@@ -1,7 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Diagnostics;
 using System.Reflection;
-using Newtonsoft.Json;
+using InternalNewtonsoft.Json;
 using PN.Crypt;
 using System;
 using System.Linq;
@@ -32,14 +32,9 @@ namespace PN.Storage
             
             var method = GetInternalMethodByName(methodInfo.IsGet, methodInfo.ReflectedType);
 
-            if (methodInfo.IsGet)
-            {
-                return StringToObject((string)method.Method.Invoke(method.MethodInstance, new object[] { methodInfo.Name }), methodInfo.CryptKey, methodInfo.Type);
-            }
-            else
-            {
-                return method.Method.Invoke(method.MethodInstance, new object[] { methodInfo.Name, ObjectToString(value, methodInfo.CryptKey) });
-            }
+            return methodInfo.IsGet ?
+                   StringToObject((string)method.Method.Invoke(method.MethodInstance, new object[] { methodInfo.ReflectedType.FullName + "_+_" + methodInfo.Name }), methodInfo.CryptKey, methodInfo.Type) :
+                   method.Method.Invoke(method.MethodInstance, new object[] { methodInfo.ReflectedType.FullName + "_+_" + methodInfo.Name, ObjectToString(value, methodInfo.CryptKey) });
         }
         
         private static (string Name, Type Type, Type ReflectedType, bool IsGet, string CryptKey) GetMethodInfo()
@@ -54,16 +49,23 @@ namespace PN.Storage
             var propertyKey = propertyInfo?.GetCustomAttributes()?.OfType<CryptKeyAttribute>()?.FirstOrDefault()?.Key;
             var useDefaultCryptKey = propertyInfo?.GetCustomAttributes()?.OfType<DefaultCryptKeyAttribute>()?.FirstOrDefault() != null;
 
-            var real_key = 
-                (useDefaultCryptKey ? caller.Name.Remove(0, 4) : null) ??
-                (propertyKey == null ? null : GetValueOfStringByName<string>(propertyKey, caller.ReflectedType)) ??
-                (reflectedKey == null ? null : GetValueOfStringByName<string>(reflectedKey, caller.ReflectedType)) ??
-                caller.Name.Remove(0, 4);
+            if (useDefaultCryptKey == false && CryptKeySettings.Any(i => i.InheritType == caller.ReflectedType) == false)
+                throw new Exception($"Need first Auth for {caller.ReflectedType} class.");
+
+            var real_key = useDefaultCryptKey ?
+                $"{caller.ReflectedType.FullName}_+_{caller.Name.Remove(0, 4)}" :
+                CryptKeySettings.FirstOrDefault(i => i.InheritType == caller.ReflectedType).CryptKey;
+
+            //var real_key = 
+            //    (useDefaultCryptKey ? caller.Name.Remove(0, 4) : null) ??
+            //    (propertyKey == null ? null : GetValueOfTypeByName<string>(propertyKey, caller.ReflectedType)) ??
+            //    (reflectedKey == null ? null : GetValueOfTypeByName<string>(reflectedKey, caller.ReflectedType)) ??
+            //    caller.Name.Remove(0, 4);
 
             return (caller.Name.Remove(0, 4), caller.ReturnType, caller.ReflectedType, caller.ReturnType != typeof(void), real_key);
         }
 
-        private static T GetValueOfStringByName<T>(String name, Type reflectedType)
+        private static T GetValueOfTypeByName<T>(String name, Type reflectedType)
         {
             var prop = reflectedType.GetProperty(name ?? string.Empty, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
 
@@ -77,8 +79,8 @@ namespace PN.Storage
             if (value == null)
                 throw new NullReferenceException($"Field or property '{name}' returns null.");
 
-            if (value.GetType() != typeof(string))
-                throw new ArgumentException($"Field or property '{name}' should be type of string, not '{value.GetType()}'.");
+            if (value.GetType() != typeof(T))
+                throw new ArgumentException($"Field or property '{name}' should be type of {typeof(T).FullName}, not '{value.GetType()}'.");
 
             return (T)value;
         }
@@ -96,7 +98,7 @@ namespace PN.Storage
             field?.SetValue(null, newValue);
         }
 
-        private static dynamic StringToObject(string source, string keyToDecrypt, Type type)
+        private static object StringToObject(string source, string keyToDecrypt, Type type)
         {
             if (string.IsNullOrEmpty(source))
                 return Utils.Utils.Internal.CreateDefaultObject(type, true);
@@ -187,7 +189,179 @@ namespace PN.Storage
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
         protected class DefaultCryptKeyAttribute : Attribute { }
 
+        [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
+        protected class IsResistantToSoftRemovalAttribute : Attribute { }
+
         #endregion
+
+        public static bool Auth<T>(string password)
+        {
+            if (string.IsNullOrEmpty(password))
+                return false;
+
+            // Сначала проверяем, существует ли наш виртуальный сейф такого типа Т
+            //// Вызываем метод Get с ключом = Hash(typeof(T).FullName + "AttempSetting"), пытаясь получить AttempSetting
+            var getMethod = GetInternalMethodByName(true, typeof(T));
+            var setMethod = GetInternalMethodByName(false, typeof(T));
+
+            var pathToAttempSetting = AES.SHA256Hash(typeof(T).FullName + "AttempSetting");
+            var attempSettingString = (string) getMethod.Method.Invoke(getMethod.MethodInstance, new object[] { pathToAttempSetting });
+            var attempSetting = new AttempSetting() { InheritType = typeof(T) };
+       
+            // Если AttempSetting нет, то:
+            if (attempSettingString == null)
+            {
+                //// Cоздаём её через метод Set
+                attempSetting.LastUpdateDate = AES.Encrypt(DateTime.Now.ToString(), AES.SHA256Hash(password));
+                setMethod.Method.Invoke(setMethod.MethodInstance, new object[] {
+                    pathToAttempSetting, ObjectToString(attempSetting, pathToAttempSetting) });
+
+                //// Потом создаём новый экземпляр типа Settings с нужным нам паролем и типом T и запихиваем в List
+                CryptKeySettings.Add(new CryptKeySetting() { InheritType = typeof(T), CryptKey = password });
+
+                //// Делаем очистку всей базы (ClearAll) с типом Т
+                ClearAll<T>();
+
+                //// Возвращаем true
+                return true;
+            }
+
+
+            // Если AttempSetting есть, то:
+            else
+            {
+                attempSetting = (AttempSetting) StringToObject(attempSettingString, pathToAttempSetting, typeof(AttempSetting));
+              
+                //// Вызываем метод CheckPassword (внутренний):
+                //// Пароль верен:
+                if (CheckPassword(password, attempSetting))
+                {
+                    ////// Создаём новый экземпляр типа CryptKeySetting с нужным нам паролем и типом T и запихиваем в List
+                    CryptKeySettings.Add(new CryptKeySetting() { InheritType = typeof(T), CryptKey = password });
+
+                    ////// Обнуляем CurrentCount в AttempSetting
+                    attempSetting.CurrentCount = 0;
+                    setMethod.Method.Invoke(setMethod.MethodInstance, new object[] {
+                        pathToAttempSetting, ObjectToString(attempSetting, pathToAttempSetting) });
+
+                    ////// Возвращаем true
+                    return true;
+                }
+
+                //// Парол НЕверен:
+                else
+                {
+                    ////// Инкрементим CurrentCount в AttempSetting (если CurrentCount > MaxCount => ClearAll)
+                    if (attempSetting.MaxCount > 0 && ++attempSetting.CurrentCount > attempSetting.MaxCount)
+                    {
+                        ClearAll<T>();
+                    }
+
+                    ////// Возвращаем false
+                    return false;
+                }
+            }
+        }
+
+        private static bool CheckPassword(string password, AttempSetting attempSetting)
+        {
+            try
+            {
+                AES.Decrypt(attempSetting.LastUpdateDate, AES.SHA256Hash(password));
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public static void SetAttempsMaxCountOfEnteringPassword<T>(int max)
+        {
+            var getMethod = GetInternalMethodByName(true, typeof(T));
+
+            var pathToAttempSetting = AES.SHA256Hash(typeof(T).FullName + "AttempSetting");
+            var attempSettingString = (string)getMethod.Method.Invoke(getMethod.MethodInstance, new object[] { pathToAttempSetting });
+
+            if (attempSettingString == null || CryptKeySettings.Any(i => i.InheritType == typeof(T)) == false)
+                return;
+
+            var attempSetting = (AttempSetting)StringToObject(attempSettingString, pathToAttempSetting, typeof(AttempSetting));
+            attempSetting.MaxCount = max;
+
+            var setMethod = GetInternalMethodByName(false, typeof(T));
+            setMethod.Method.Invoke(setMethod.MethodInstance, new object[] {
+                pathToAttempSetting, ObjectToString(attempSetting, pathToAttempSetting) });
+        }
+
+        public static void UpdatePasswordAndReCrypt<T>(string newPassword)
+        {
+            if (CryptKeySettings.Any(s => s.InheritType == typeof(T)) == false)
+                throw new Exception($"Need first Auth for {typeof(T)} class.");
+
+            if (string.IsNullOrEmpty(newPassword))
+                return;
+
+            var allProps = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Static);
+            if (allProps == null || allProps.Count() == 0)
+                return;
+
+            var filteredProps = new List<PropertyInfo>();
+            foreach (var prop in allProps)
+            {
+                if (prop?.GetCustomAttributes()?.OfType<DefaultCryptKeyAttribute>()?.FirstOrDefault() == null)
+                {
+                    filteredProps.Add(prop);
+                }
+            }
+
+            if (filteredProps.Count == 0)
+                return;
+            
+            var methodInfo = GetInternalMethodByName(nameof(Set), typeof(T));
+
+            foreach (var prop in filteredProps)
+            {
+                methodInfo.Method.Invoke(methodInfo.MethodInstance, new object[] { prop.Name, ObjectToString(prop.GetValue(null), AES.SHA256Hash(newPassword)) });
+            }
+
+            CryptKeySettings[CryptKeySettings.IndexOf(CryptKeySettings.FirstOrDefault(s => s.InheritType == typeof(T)))].CryptKey = newPassword;
+        }
+
+        public static void ClearAll<T>(bool SoftClearing = false)
+        {
+            var methodInfo = GetInternalMethodByName(nameof(Set), typeof(T));
+            
+            foreach (var prop in typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Static))
+            {
+                if (SoftClearing && prop?.GetCustomAttributes()?.OfType<IsResistantToSoftRemovalAttribute>()?.FirstOrDefault() != null)
+                {
+                    continue;
+                }
+
+                methodInfo.Method.Invoke(methodInfo.MethodInstance, new object[] { prop.Name, null });
+            }
+        }
+
+        private static List<CryptKeySetting> CryptKeySettings = new List<CryptKeySetting>();
+    }
+
+
+
+    internal class AttempSetting
+    {
+        public Type InheritType { get; set; }
+        public int MaxCount { get; set; }
+        public int CurrentCount { get; set; }
+        public string LastUpdateDate { get; set; }
+    }
+
+
+    internal class CryptKeySetting
+    {
+        public Type InheritType { get; set; }
+        public string CryptKeyHash { get => AES.SHA256Hash(CryptKey); }
+        public string CryptKey { get; set; }
     }
 
     //public interface ISSS
