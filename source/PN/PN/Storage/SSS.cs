@@ -151,6 +151,9 @@ namespace PN.Storage
             // Если AttempSetting нет, то:
             if (attempSettingString == null)
             {
+                //// Делаем очистку всей базы (ClearAll) с типом Т
+                ClearAll<T>();
+
                 //// Cоздаём её через метод Set
                 attempSetting.LastUpdateDate = AES.Encrypt(DateTime.Now.ToString(), AES.SHA256Hash(password));
                 setMethod.Method.Invoke(setMethod.MethodInstance, new object[] {
@@ -158,9 +161,6 @@ namespace PN.Storage
 
                 //// Потом создаём новый экземпляр типа Settings с нужным нам паролем и типом T и запихиваем в List
                 CryptKeySettings.Add(new CryptKeySetting() { InheritType = typeof(T), CryptKey = password });
-
-                //// Делаем очистку всей базы (ClearAll) с типом Т
-                ClearAll<T>();
 
                 //// Возвращаем true
                 return true;
@@ -308,8 +308,16 @@ namespace PN.Storage
                     continue;
                 }
 
-                methodInfo.Method.Invoke(methodInfo.MethodInstance, new object[] { prop.Name, null });
+                methodInfo.Method.Invoke(methodInfo.MethodInstance, new object[] { typeof(T).FullName + "_+_" + prop.Name, null });
             }
+            
+            var pathToAttempSetting = AES.SHA256Hash(typeof(T).FullName + "AttempSetting");
+            methodInfo.Method.Invoke(methodInfo.MethodInstance, new object[] { pathToAttempSetting, null });
+            try
+            {
+                CryptKeySettings.RemoveAt(CryptKeySettings.IndexOf(CryptKeySettings.FirstOrDefault(s => s.InheritType == typeof(T))));
+            }
+            catch { }
         }
 
         private static List<CryptKeySetting> CryptKeySettings = new List<CryptKeySetting>();
