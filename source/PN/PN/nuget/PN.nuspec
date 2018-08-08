@@ -2,14 +2,14 @@
 <package >
   <metadata>
     <id>Pushnovn.PN</id>
-    <version>0.1.2.11</version>
+    <version>0.1.2.14</version>
     <title>PN lib (Pre-Alpha)</title>
     <authors>Pushnovn</authors>
     <owners>Pushnovn</owners>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>Internal PN lib</description>
     <releaseNotes>
-      Replaced Newtonsoft dependency into dll.
+      Changed DefaultCryptkey attribute to NeedAuth attribute (fixed now).
     </releaseNotes>
     <projectUrl>http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http</projectUrl>
     <copyright>Copyright 2018</copyright>

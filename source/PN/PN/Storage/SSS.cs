@@ -45,9 +45,7 @@ namespace PN.Storage
                 BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance)
                                        .FirstOrDefault(p => p.Name == caller.Name.Remove(0, 4));
             
-            var reflectedKey = propertyInfo?.ReflectedType.GetCustomAttributes()?.OfType<CryptKeyAttribute>()?.FirstOrDefault()?.Key;
-            var propertyKey = propertyInfo?.GetCustomAttributes()?.OfType<CryptKeyAttribute>()?.FirstOrDefault()?.Key;
-            var useDefaultCryptKey = propertyInfo?.GetCustomAttributes()?.OfType<DefaultCryptKeyAttribute>()?.FirstOrDefault() != null;
+            var useDefaultCryptKey = propertyInfo?.GetCustomAttributes()?.OfType<NeedAuthAttribute>()?.FirstOrDefault() == null;
 
             if (useDefaultCryptKey == false && CryptKeySettings.Any(i => i.InheritType == caller.ReflectedType) == false)
                 throw new Exception($"Need first Auth for {caller.ReflectedType} class.");
@@ -55,13 +53,7 @@ namespace PN.Storage
             var real_key = useDefaultCryptKey ?
                 $"{caller.ReflectedType.FullName}_+_{caller.Name.Remove(0, 4)}" :
                 CryptKeySettings.FirstOrDefault(i => i.InheritType == caller.ReflectedType).CryptKeyHash;
-
-            //var real_key = 
-            //    (useDefaultCryptKey ? caller.Name.Remove(0, 4) : null) ??
-            //    (propertyKey == null ? null : GetValueOfTypeByName<string>(propertyKey, caller.ReflectedType)) ??
-            //    (reflectedKey == null ? null : GetValueOfTypeByName<string>(reflectedKey, caller.ReflectedType)) ??
-            //    caller.Name.Remove(0, 4);
-
+            
             return (caller.Name.Remove(0, 4), caller.ReturnType, caller.ReflectedType, caller.ReturnType != typeof(void), real_key);
         }
 
@@ -116,51 +108,6 @@ namespace PN.Storage
             return AES.Encrypt(json, keyToEncrypt);
         }
 
-        /// <summary>
-        /// Recrypt all static properties in class, if class attribute is set and property has no their own crypt key.
-        /// </summary>
-        public static void ReCrypt<T>(string newPassword)
-        {
-            if (string.IsNullOrEmpty(newPassword))
-                return;
-
-            var allProps = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Static);
-            if (allProps == null || allProps.Count() == 0)
-                return;
-
-            var globalClassKey = typeof(T).GetCustomAttributes()?.OfType<CryptKeyAttribute>()?.FirstOrDefault()?.Key;
-            if (string.IsNullOrEmpty(globalClassKey))
-                return;
-
-            var filteredProps = new List<PropertyInfo>();
-            foreach (var prop in allProps)
-            {
-                var useDefaultCryptKey = prop?.GetCustomAttributes()?.OfType<DefaultCryptKeyAttribute>()?.FirstOrDefault() != null;
-                if (useDefaultCryptKey)
-                    continue;
-
-                var propertyKey = prop?.GetCustomAttributes()?.OfType<CryptKeyAttribute>()?.FirstOrDefault()?.Key;
-                if (string.IsNullOrEmpty(propertyKey) == false)
-                    continue;
-
-                filteredProps.Add(prop);
-            }
-
-            if (filteredProps.Count == 0)
-                return;
-
-            var sha256NewPass = AES.SHA256Hash(newPassword);
-
-            var methodInfo = GetInternalMethodByName(nameof(Set), typeof(T));
-            
-            foreach (var prop in filteredProps)
-            {
-                methodInfo.Method.Invoke(methodInfo.MethodInstance, new object[] { prop.Name, ObjectToString(prop.GetValue(null), sha256NewPass) });
-            }
-
-            SetValueOfStringByName<T>(globalClassKey, sha256NewPass);
-        }
-
         private static (MethodInfo Method, object MethodInstance) GetInternalMethodByName(bool isGet, Type inheritClassType) =>
             GetInternalMethodByName(isGet ? nameof(Get) : nameof(Set), inheritClassType);
 
@@ -180,14 +127,7 @@ namespace PN.Storage
         #region Attributes
 
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
-        protected class CryptKeyAttribute : Attribute
-        {
-            public string Key { get; set; }
-            public CryptKeyAttribute(string key) { Key = key; }
-        }
-
-        [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
-        protected class DefaultCryptKeyAttribute : Attribute { }
+        protected class NeedAuthAttribute : Attribute { }
 
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
         protected class IsResistantToSoftRemovalAttribute : Attribute { }
@@ -263,12 +203,9 @@ namespace PN.Storage
             }
         }
 
+#if DEBUG
         public static bool CheckPassword<T>(string password)
         {
-#if !DEBUG
-            return false;
-#endif
-
             var getMethod = GetInternalMethodByName(true, typeof(T));
 
             var pathToAttempSetting = AES.SHA256Hash(typeof(T).FullName + "AttempSetting");
@@ -278,6 +215,7 @@ namespace PN.Storage
 
             return CheckPassword(password, attempSetting);
         }
+#endif
 
         private static bool CheckPassword(string password, AttempSetting attempSetting)
         {
@@ -325,7 +263,7 @@ namespace PN.Storage
             var filteredProps = new List<PropertyInfo>();
             foreach (var prop in allProps)
             {
-                if (prop?.GetCustomAttributes()?.OfType<DefaultCryptKeyAttribute>()?.FirstOrDefault() == null)
+                if (prop?.GetCustomAttributes()?.OfType<NeedAuthAttribute>()?.FirstOrDefault() != null)
                 {
                     filteredProps.Add(prop);
                 }
@@ -386,8 +324,7 @@ namespace PN.Storage
         public int CurrentCount { get; set; }
         public string LastUpdateDate { get; set; }
     }
-
-
+    
     internal class CryptKeySetting
     {
         public Type InheritType { get; set; }

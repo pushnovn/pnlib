@@ -33,9 +33,9 @@ namespace PN.Utils
                 }
             }
 
-            public static string BytesToString(byte[] bytes) => Encoding.UTF8.GetString(bytes);
+            public static string BytesToString(byte[] bytes) => bytes == null ? null : Encoding.UTF8.GetString(bytes);
 
-            public static byte[] StringToBytes(string str) => Encoding.UTF8.GetBytes(str);
+            public static byte[] StringToBytes(string str) => str == null ? null : Encoding.UTF8.GetBytes(str);
 
             /// <summary>
             /// Convert double value to short string with K, M or B version, where K = 1 000, M = 1 000 000 and B = 1 000 000 000.

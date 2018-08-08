@@ -254,13 +254,13 @@ namespace ConsoleApp1
     
     public class SSS3 : SSS2
     {
-        [DefaultCryptKey]
+        [NeedAuth]
         [IsResistantToSoftRemoval]
         private static string ExampleTestReCryptKEY { get; set; } = "some crypt key...";
 
         public static TestModel ExampleTestReCrypt { get => Base(); set => Base(value); }
 
-        [DefaultCryptKey]
+        [NeedAuth]
         public static TestModel ExampleTest3Model { get => Base(); set => Base(value); }
     }
 
