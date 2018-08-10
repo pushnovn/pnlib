@@ -313,11 +313,8 @@ namespace PN.Storage
             
             var pathToAttempSetting = AES.SHA256Hash(typeof(T).FullName + "AttempSetting");
             methodInfo.Method.Invoke(methodInfo.MethodInstance, new object[] { pathToAttempSetting, null });
-            try
-            {
-                CryptKeySettings.RemoveAt(CryptKeySettings.IndexOf(CryptKeySettings.FirstOrDefault(s => s.InheritType == typeof(T))));
-            }
-            catch { }
+
+            CryptKeySettings.RemoveAll(s => s.InheritType == typeof(T));
         }
 
         private static List<CryptKeySetting> CryptKeySettings = new List<CryptKeySetting>();

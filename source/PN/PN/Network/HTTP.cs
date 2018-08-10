@@ -44,6 +44,7 @@ namespace PN.Network
                 var requestUri = new Uri(Utils.Utils.Internal.ProcessComplexString(methodInfo.MethodFullUrl, requestModel));
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(requestUri);
                 request.Method = methodInfo.RequestType.ToString();
+                request.ContentType = ContentTypeToString(methodInfo.ContentType);
 
                 #endregion
 
@@ -66,18 +67,23 @@ namespace PN.Network
 
                 #region Body
 
+                byte[] requestBody = requestModel.Body ?? null;
+
                 var requestJson = JsonConvert.SerializeObject(requestModel);
-                if (methodInfo.RequestType != RequestTypes.GET && !requestJson.Equals("{}") && !requestJson.Equals("null"))
+                if (requestBody == null && methodInfo.RequestType != RequestTypes.GET && !requestJson.Equals("{}") && !requestJson.Equals("null"))
                 {
-                    byte[] requestBody = Encoding.UTF8.GetBytes(requestJson);
-
-                    request.ContentLength = requestBody.Length;
-                    request.ContentType = ContentTypeToString(methodInfo.ContentType);
-
-                    using (Stream stream = request.GetRequestStream())
-                        stream.Write(requestBody, 0, requestBody.Length);
+                    requestBody = Encoding.UTF8.GetBytes(requestJson);
                 }
 
+                if (requestBody != null)
+                {
+                    request.ContentLength = requestBody.Length;
+                    using (Stream stream = request.GetRequestStream())
+                    {
+                        stream.Write(requestBody, 0, requestBody.Length);
+                    }
+                }
+                
                 #endregion
 
                 #region Execute request
@@ -300,6 +306,9 @@ namespace PN.Network
             {
                 [JsonIgnore]
                 public List<HeaderAttribute> Headers { get; set; }
+
+                [JsonIgnore]
+                public byte[] Body { get; set; }
             }
 
             public class ResponseEntity

@@ -116,6 +116,13 @@ namespace ConsoleApp1
     {
         public static string Get(string ooo = null)
         {
+            var arr = new byte[1];
+
+            var str = PN.Utils.Utils.Converters.BytesToString(arr);
+
+            var bewarr = PN.Utils.Utils.Converters.StringToBytes("");
+
+
             PN.Utils.Utils.Debug.CalculateMethodTimeExecution(() => 
             {
                 StackTrace st = new StackTrace();
