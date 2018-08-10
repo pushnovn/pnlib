@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 namespace PN.Utils
@@ -58,6 +59,43 @@ namespace PN.Utils
                     return (num / 1000).ToString("#.0k");
 
                 return num.ToString();
+            }
+
+            public static T FromByteArray<T>(byte[] rawValue)
+            {
+                GCHandle handle = GCHandle.Alloc(rawValue, GCHandleType.Pinned);
+                T structure = (T)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(T));
+                handle.Free();
+                return structure;
+            }
+
+            public static byte[] ToByteArray(object value, int maxLength = int.MaxValue)
+            {
+                int rawsize = Marshal.SizeOf(value);
+                byte[] rawdata = new byte[rawsize];
+                GCHandle handle =
+                    GCHandle.Alloc(rawdata,
+                    GCHandleType.Pinned);
+                Marshal.StructureToPtr(value,
+                    handle.AddrOfPinnedObject(),
+                    false);
+                handle.Free();
+                if (maxLength < rawdata.Length)
+                {
+                    byte[] temp = new byte[maxLength];
+                    Array.Copy(rawdata, temp, maxLength);
+                    return temp;
+                }
+                else
+                {
+                    return rawdata;
+                }
+            }
+
+            public class Base64
+            {
+                public static string ToString(byte[] inArray) => Convert.ToBase64String(inArray);
+                public static byte[] ToBytes(string s) => Convert.FromBase64String(s);
             }
         }
         

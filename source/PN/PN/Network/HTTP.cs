@@ -11,6 +11,8 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using static PN.Network.HTTP.Entities;
 
+
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 namespace PN.Network
 {
     /// <summary>
@@ -19,11 +21,35 @@ namespace PN.Network
     /// </summary>
     public class HTTP
     {
+        public static TResponse Request<TResponse>(string url, RequestEntity requestEntity = null, params object[] settings)
+        {
+            var headers = settings.OfType<HeaderAttribute>()?.ToList();
+            settings.OfType<IEnumerable<HeaderAttribute>>()?.ToList()?.ForEach(l => headers.AddRange(l));
+            
+            var methodInfo = new ReflMethodInfo()
+            {
+                MethodPath = url,
+                BaseReturnType = typeof(TResponse),
+                IsGenericType = typeof(TResponse).IsGenericType,
+                ReturnType = typeof(TResponse).IsGenericType ? typeof(TResponse).GetGenericArguments()[0] : typeof(TResponse),
+                RequestType = settings.OfType<RequestTypes>().LastOrDefault(),
+                ContentType = settings.OfType<ContentTypes>().LastOrDefault(),
+                IgnoreGlobalHeaders = settings.OfType<IgnoreGlobalHeadersAttribute>()?.Count() > 0,
+                HeaderAttributes = headers,
+            };
+            
+            var method = typeof(HTTP).GetMethod(nameof(BaseAsyncPrivate), BindingFlags.NonPublic | BindingFlags.Static);
+            var generic = method.MakeGenericMethod(methodInfo.ReturnType);
+            var task = generic.Invoke(null, new object[] { requestEntity, methodInfo });
+
+            return (TResponse) (methodInfo.IsGenericType ? task : task.GetType().GetProperty(nameof(Task<dynamic>.Result)).GetValue(task, null));
+        }
+
         /// <summary>
         /// Docs (RU) avaliable on http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        protected static dynamic Base(RequestEntity requestModel)
+        protected static dynamic Base(RequestEntity requestModel = null)
         {
             var methodInfo = GetMethodInfo();
 
@@ -40,7 +66,7 @@ namespace PN.Network
             {
                 #region URL and request type
 
-                //    Console.WriteLine(methodInfo.MethodFullUrl);
+                requestModel = requestModel ?? new RequestEntity();
                 var requestUri = new Uri(Utils.Utils.Internal.ProcessComplexString(methodInfo.MethodFullUrl, requestModel));
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(requestUri);
                 request.Method = methodInfo.RequestType.ToString();
@@ -100,7 +126,14 @@ namespace PN.Network
                         object instance;
                         try
                         {
-                            instance = JsonConvert.DeserializeObject(responseJson, methodInfo.ReturnType);
+                            if (typeof(T).IsValueType)
+                                instance = Utils.Utils.Converters.FromByteArray<T>(responseBody);
+                            else if (typeof(T) == typeof(string))
+                                instance = responseJson;
+                            else if (typeof(T) == typeof(byte[]))
+                                instance = responseBody;
+                            else 
+                                instance = JsonConvert.DeserializeObject(responseJson, methodInfo.ReturnType);
                         }
                         catch (Exception exc)
                         {
@@ -225,7 +258,7 @@ namespace PN.Network
                 ReturnType = responseModelType,// typeof(T) != typeof(object) ? typeof(T) : (method as MethodInfo)?.ReturnType,
                 BaseReturnType = baseResponseModelType,
                 IsGenericType = isGenericType,
-                Name = method.Name,
+            //    Name = method.Name,
                 MethodPath = temp_uri,
                 MethodPartialUrl = url?.Url,
                 RequestType = requestType == null ? RequestTypes.GET : requestType.RequestType,
@@ -249,7 +282,7 @@ namespace PN.Network
 
         private class ReflMethodInfo
         {
-            internal string Name { get; set; }
+        //    internal string Name { get; set; }
             internal string MethodPath { get; set; }
             internal Type ReturnType { get; set; }
             internal Type BaseReturnType { get; set; }
@@ -269,7 +302,7 @@ namespace PN.Network
         protected class UrlAttribute : Attribute
         {
             public readonly string Url;
-            public UrlAttribute(string name) { Url = name; }
+            public UrlAttribute(string url) { Url = url; }
         }
 
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
@@ -294,12 +327,12 @@ namespace PN.Network
         }
 
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
-        protected class IgnoreGlobalHeadersAttribute : Attribute { }
+        public class IgnoreGlobalHeadersAttribute : Attribute { }
 
         #endregion
 
-        protected enum RequestTypes { GET, POST, PUT, DELETE }
-        protected enum ContentTypes { JSON }
+        public enum RequestTypes { GET, POST, PUT, DELETE }
+        public enum ContentTypes { JSON }
 
         public class Entities
         {
@@ -352,3 +385,4 @@ namespace PN.Network
         #endregion
     }
 }
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member

@@ -41,6 +41,12 @@ namespace ConsoleApp1
 
             //        var ttt = API.Testtt.TestAsync(mod).Result;
             //        var ttt2 = API.Testtt.Test(mod);
+            var isValT = (new byte[] { 1, 3 }).GetType().IsValueType;
+
+            var arr = PN.Utils.Utils.Converters.ToByteArray(12.34);
+            var dbl = PN.Utils.Utils.Converters.FromByteArray<Double>(arr);
+
+            Console.WriteLine($"{12.34} => {dbl}");
 
             StaticTest.Get();
 
@@ -116,6 +122,25 @@ namespace ConsoleApp1
     {
         public static string Get(string ooo = null)
         {
+            var res = HTTP.Request<byte[]>("https://www.google.by/images/branding/googlelogo/2x/googlelogo_color_120x44dp.png", null, RequestTypes.GET, new IgnoreGlobalHeadersAttribute()
+                
+                //,new HeaderAttribute[2] { new HeaderAttribute("1k", "1v"), new HeaderAttribute("2k", "2v") },
+                //new List<HeaderAttribute> { new HeaderAttribute("1kLLL", "1vLLL"), new HeaderAttribute("2kLLL", "2vLLL") }
+
+
+                );
+
+            var pict = Convert.ToBase64String(res);
+
+            Console.WriteLine(pict);
+
+            Console.ReadLine();
+
+            var pp = API___.FilesTest(new FilesRequestModel());
+
+
+
+
             var arr = new byte[1];
 
             var str = PN.Utils.Utils.Converters.BytesToString(arr);
@@ -155,18 +180,19 @@ namespace ConsoleApp1
 
             SSS3.Auth<SSS3>("some auth pass");
 
+#if DEBUG
             var ch1 = SSS3.CheckPassword<SSS3>("some auth pass");
             var ch2 = SSS3.CheckPassword<SSS3>("some auth pass 2");
-
+#endif
             SSS3.ExampleTestReCrypt = new TestModel() { id = "ExampleTestReCrypt" };
 
             SSS3.ExampleTest3Model = new TestModel() { id = "IDDD" };
 
             SSS3.UpdatePasswordAndReCrypt<SSS3>("some new cryptostring");
-            
+#if DEBUG
             var ch3 = SSS3.CheckPassword<SSS3>("some new cryptostring");
             var ch4 = SSS3.CheckPassword<SSS3>("some auth pass");
-
+#endif
             var testExampleTestReCrypt = SSS3.ExampleTestReCrypt;
 
 
@@ -211,13 +237,17 @@ namespace ConsoleApp1
         }
     }
 
-    
-        [Url("http://videoreg.pushnovn.com:1583/api/Files?Version=%7BVersion%7D&Token=jICmeDBf2e2vyfCkzlI87P1eG/PIQFjFeanVrXxgj7nr+o7T4LiNYWArvbOU3SrCIrcc2aAjNN4zIA6LgJmMmtfyGm/1SShlVZ7cStft6LblcjXg3Q0CIMkdSUtQ5sQy44WWoU4X7KLC3oiRNbyg4sJeGGta3qmxEK+v7VXTJmQ06R5yRCpF27LANQ8YVT4AXAK")]
-        public class API___ : HTTP
+
+   // [Url("http://videoreg.pushnovn.com:1583/api/Files?Version=%7BVersion%7D&Token=jICmeDBf2e2vyfCkzlI87P1eG/PIQFjFeanVrXxgj7nr+o7T4LiNYWArvbOU3SrCIrcc2aAjNN4zIA6LgJmMmtfyGm/1SShlVZ7cStft6LblcjXg3Q0CIMkdSUtQ5sQy44WWoU4X7KLC3oiRNbyg4sJeGGta3qmxEK+v7VXTJmQ06R5yRCpF27LANQ8YVT4AXAK")]
+    [Url("http://videoreg.pushnovn.com:1583/")]
+    public class API___ : HTTP
         {
             [RequestType(RequestTypes.GET)]
             [Url("kE5lGUznLKEiGvGFig==")]
             public static Task<List<ServerFileInfo>> Files(FilesRequestModel ttt) => Base(ttt);
+
+            [Url("asd")]
+            public static Task<List<ServerFileInfo>> FilesTest(FilesRequestModel ttt) => Base(ttt);
         }
 
         public class FilesRequestModel : PN.Network.HTTP.Entities.RequestEntity
