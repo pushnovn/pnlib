@@ -45,6 +45,7 @@ namespace PN.Network
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(requestUri);
                 request.Method = methodInfo.RequestType.ToString();
                 request.ContentType = ContentTypeToString(methodInfo.ContentType);
+                request.Timeout = requestModel.Timeout ?? request.Timeout;
 
                 #endregion
 
@@ -309,6 +310,9 @@ namespace PN.Network
 
                 [JsonIgnore]
                 public byte[] Body { get; set; }
+                
+                [JsonIgnore]
+                public int? Timeout { get; set; }
             }
 
             public class ResponseEntity
