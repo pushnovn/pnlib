@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Pushnovn.PN</id>
-    <version>0.1.3</version>
+    <version>0.1.3.1</version>
     <title>PN lib (Pre-Alpha)</title>
     <authors>Pushnovn</authors>
     <owners>Pushnovn</owners>
@@ -10,14 +10,8 @@
     <description>Internal PN lib</description>
     <releaseNotes>
 HTTP:
-- Added static method Request(T), which is able to process any custom request. Need some docs and/or usages.
-- Updated Base method, now it can called without params (RequestEntity may be null).
-- Removed some useless vars in internal methods.
-- Added support for value types, byte array and string (both for Base and Request).
-
-Utils:
-- Added some usefull low-level converters.
-- Added standart Base64 converter.
+- Fixed ignoring method name if URL attr is missing.
+- Fixed duplication slashes if it set in URL attr.
     </releaseNotes>
     <projectUrl>http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http</projectUrl>
     <copyright>Copyright 2018</copyright>

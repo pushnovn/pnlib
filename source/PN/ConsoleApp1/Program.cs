@@ -133,10 +133,19 @@ namespace ConsoleApp1
             var pict = Convert.ToBase64String(res);
 
             Console.WriteLine(pict);
+            Console.WriteLine();
+            Console.WriteLine();
+            Console.WriteLine();
 
+
+            var ppp = API___.DownloadGoogleLogo();
+
+            pict = Convert.ToBase64String(ppp);
+            Console.WriteLine(pict);
             Console.ReadLine();
 
-            var pp = API___.FilesTest(new FilesRequestModel());
+
+            var pp = API___.FilesTest(new FilesRequestModel()).Result;
 
 
 
@@ -238,42 +247,47 @@ namespace ConsoleApp1
     }
 
 
-   // [Url("http://videoreg.pushnovn.com:1583/api/Files?Version=%7BVersion%7D&Token=jICmeDBf2e2vyfCkzlI87P1eG/PIQFjFeanVrXxgj7nr+o7T4LiNYWArvbOU3SrCIrcc2aAjNN4zIA6LgJmMmtfyGm/1SShlVZ7cStft6LblcjXg3Q0CIMkdSUtQ5sQy44WWoU4X7KLC3oiRNbyg4sJeGGta3qmxEK+v7VXTJmQ06R5yRCpF27LANQ8YVT4AXAK")]
-    [Url("http://videoreg.pushnovn.com:1583/")]
+    // [Url("http://videoreg.pushnovn.com:1583/api/Files?Version=%7BVersion%7D&Token=jICmeDBf2e2vyfCkzlI87P1eG/PIQFjFeanVrXxgj7nr+o7T4LiNYWArvbOU3SrCIrcc2aAjNN4zIA6LgJmMmtfyGm/1SShlVZ7cStft6LblcjXg3Q0CIMkdSUtQ5sQy44WWoU4X7KLC3oiRNbyg4sJeGGta3qmxEK+v7VXTJmQ06R5yRCpF27LANQ8YVT4AXAK")]
+    // [Url("http://videoreg.pushnovn.com:1583/")]
+    [Url("https://www.google.by/images/branding/googlelogo/2x/")]
+
     public class API___ : HTTP
-        {
-            [RequestType(RequestTypes.GET)]
-            [Url("kE5lGUznLKEiGvGFig==")]
-            public static Task<List<ServerFileInfo>> Files(FilesRequestModel ttt) => Base(ttt);
+    {
+        [RequestType(RequestTypes.GET)]
+        [Url("kE5lGUznLKEiGvGFig==")]
+        public static Task<List<ServerFileInfo>> Files(FilesRequestModel ttt) => Base(ttt);
 
-            [Url("asd")]
-            public static Task<List<ServerFileInfo>> FilesTest(FilesRequestModel ttt) => Base(ttt);
-        }
+        [Url("kE5lGUznLKEiGvGFig==")]
+        public static Task<FilesResponseModel> FilesTest(FilesRequestModel ttt) => Base(ttt);
 
-        public class FilesRequestModel : PN.Network.HTTP.Entities.RequestEntity
-        {
-            //[JsonIgnore]
-            //public string Version { get; set; }
-            //[JsonIgnore]
-            //public string Token { get; set; }
+        [Url("googlelogo_color_120x44dp.png")]
+        public static byte[] DownloadGoogleLogo() => Base();
+    }
 
-        }
-        public class FilesResponseModel //: PN.Network.HTTP.Entities.ResponseEntity
-        {
-            public List<ServerFileInfo> Files { get; set; }
-        }
+    public class FilesRequestModel : PN.Network.HTTP.Entities.RequestEntity
+    {
+        //[JsonIgnore]
+        //public string Version { get; set; }
+        //[JsonIgnore]
+        //public string Token { get; set; }
 
-        public class ServerFileInfo
-        {
-            public string OriginalName { get; set; }
-            public string MD5 { get; set; }
-            public string URI { get; set; }
-            public string FuturePath { get; set; }
-            public string PathOnServer { get; set; }
-            public string toke { get; set; }
-            public long FileSize { get; set; }
-            public bool IsDownloaded { get; set; }
-        }
+    }
+    public class FilesResponseModel : PN.Network.HTTP.Entities.ResponseEntity
+    {
+        public List<ServerFileInfo> Files { get; set; }
+    }
+
+    public class ServerFileInfo
+    {
+        public string OriginalName { get; set; }
+        public string MD5 { get; set; }
+        public string URI { get; set; }
+        public string FuturePath { get; set; }
+        public string PathOnServer { get; set; }
+        public string toke { get; set; }
+        public long FileSize { get; set; }
+        public bool IsDownloaded { get; set; }
+    }
     
 
     

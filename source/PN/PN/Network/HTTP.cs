@@ -21,6 +21,12 @@ namespace PN.Network
     /// </summary>
     public class HTTP
     {
+        /// <summary>
+        /// Docs (RU) avaliable on http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        protected static dynamic Base(RequestEntity requestModel = null) => CreatePrivateBase(requestModel, GetMethodInfo());
+
         public static TResponse Request<TResponse>(string url, RequestEntity requestEntity = null, params object[] settings)
         {
             var headers = settings.OfType<HeaderAttribute>()?.ToList();
@@ -37,29 +43,20 @@ namespace PN.Network
                 IgnoreGlobalHeaders = settings.OfType<IgnoreGlobalHeadersAttribute>()?.Count() > 0,
                 HeaderAttributes = headers,
             };
-            
-            var method = typeof(HTTP).GetMethod(nameof(BaseAsyncPrivate), BindingFlags.NonPublic | BindingFlags.Static);
-            var generic = method.MakeGenericMethod(methodInfo.ReturnType);
-            var task = generic.Invoke(null, new object[] { requestEntity, methodInfo });
 
-            return (TResponse) (methodInfo.IsGenericType ? task : task.GetType().GetProperty(nameof(Task<dynamic>.Result)).GetValue(task, null));
+            return (TResponse) CreatePrivateBase(requestEntity, methodInfo);
         }
 
-        /// <summary>
-        /// Docs (RU) avaliable on http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http
-        /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        protected static dynamic Base(RequestEntity requestModel = null)
+        private static object CreatePrivateBase(RequestEntity requestModel, ReflMethodInfo methodInfo)
         {
-            var methodInfo = GetMethodInfo();
-
             var method = typeof(HTTP).GetMethod(nameof(BaseAsyncPrivate), BindingFlags.NonPublic | BindingFlags.Static);
             var generic = method.MakeGenericMethod(methodInfo.ReturnType);
             var task = generic.Invoke(null, new object[] { requestModel, methodInfo });
 
             return methodInfo.IsGenericType ? task : task.GetType().GetProperty(nameof(Task<dynamic>.Result)).GetValue(task, null);
         }
-        
+
         private static async Task<T> BaseAsyncPrivate<T>(RequestEntity requestModel, ReflMethodInfo methodInfo)
         {
             try
@@ -81,13 +78,13 @@ namespace PN.Network
                 headers.AddRange(methodInfo.IgnoreGlobalHeaders ? new List<HeaderAttribute>() : GlobalHeaders);
                 headers.AddRange(methodInfo.HeaderAttributes ?? new List<HeaderAttribute>());
                 headers.AddRange(requestModel.Headers ?? new List<HeaderAttribute>());
-
+                
                 foreach (var header in headers)
                 {
-                    if (string.IsNullOrWhiteSpace(header.Key) || string.IsNullOrWhiteSpace(header.Value))
-                        continue;
-
-                    request.Headers[header.Key] = Utils.Utils.Internal.ProcessComplexString(header.Value, requestModel);
+                    if (string.IsNullOrWhiteSpace(header.Key) == false)
+                    {
+                        request.Headers[header.Key] = Utils.Utils.Internal.ProcessComplexString(header.Value, requestModel);
+                    }
                 }
 
                 #endregion
@@ -164,70 +161,7 @@ namespace PN.Network
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static ReflMethodInfo GetMethodInfo()
         {
-            StackTrace st = new StackTrace();
-            StackFrame[] fr = st.GetFrames();
-            if (fr == null) return null;
-
-            #region debug comments
-
-            //StackTrace st2 = new StackTrace(true);
-            //for (int i = 0; i < st2.FrameCount; i++)
-            //{
-            //    // Note that high up the call stack, there is only
-            //    // one stack frame.
-            //    StackFrame sf = st2.GetFrame(i);
-
-            //    Console.WriteLine();
-            //    Console.WriteLine("High up the call stack, Method: {0}", sf.GetMethod());
-            //    Console.WriteLine("High up the call stack, Line Number: {0}", sf.GetFileLineNumber());
-
-            //    var meth = sf.GetMethod();
-            //    var retType = (meth as MethodInfo)?.ReturnType;
-
-            //    //    var ignoreGlobalHeader2222222s = sf.GetMethod().GetCustomAttributes()?.OfType<IgnoreGlobalHeadersAttribute>()?.FirstOrDefault();
-            //    var attrs = sf.GetMethod().GetCustomAttributes();
-            //    if (attrs != null)
-            //    {
-            //        Console.WriteLine("GetCustomAttributes COUNT: {0}", attrs.Count());
-            //        foreach (var att in attrs)
-            //        {
-            //            Console.WriteLine("Attr: {0}", att.GetType().Name);
-            //        }
-            //    }
-            //    Console.WriteLine("ReturnType: {0}", retType);
-            //}
-
-            //Console.WriteLine();
-            //Console.WriteLine();
-            //Console.WriteLine();
-            //Console.WriteLine();
-            //Console.WriteLine();
-            //Console.WriteLine();
-            //Console.WriteLine();
-            //Console.WriteLine();
-            //Console.WriteLine();
-            //Console.WriteLine();
-            //foreach (var f in fr)
-            //    Console.WriteLine(JsonConvert.SerializeObject(f.GetMethod() as MethodInfo));
-
-            //Console.WriteLine();
-            //Console.WriteLine();
-            //Console.WriteLine();
-            //Console.WriteLine();
-            //Console.WriteLine();
-
-            //Console.WriteLine();
-            //Console.WriteLine();
-            //Console.WriteLine();
-            //Console.WriteLine();
-            //Console.WriteLine();
-
-            //foreach (var f in fr)
-            //    Console.WriteLine(JsonConvert.SerializeObject(f.GetMethod()));
-
-            #endregion
-
-            var method = fr[2].GetMethod();
+            var method = new StackTrace().GetFrame(2).GetMethod();
 
             var baseResponseModelType = (method as MethodInfo)?.ReturnType;
             var isGenericType = baseResponseModelType.IsGenericType;
@@ -255,12 +189,11 @@ namespace PN.Network
 
             return new ReflMethodInfo()
             {
-                ReturnType = responseModelType,// typeof(T) != typeof(object) ? typeof(T) : (method as MethodInfo)?.ReturnType,
+                ReturnType = responseModelType,
                 BaseReturnType = baseResponseModelType,
                 IsGenericType = isGenericType,
-            //    Name = method.Name,
-                MethodPath = temp_uri,
-                MethodPartialUrl = url?.Url,
+                MethodPath = temp_uri.TrimEnd('/'),
+                MethodPartialUrl = url?.Url ?? method.Name,
                 RequestType = requestType == null ? RequestTypes.GET : requestType.RequestType,
                 ContentType = contentType == null ? ContentTypes.JSON : contentType.ContentType,
                 IgnoreGlobalHeaders = ignoreGlobalHeaders != null,
@@ -282,14 +215,13 @@ namespace PN.Network
 
         private class ReflMethodInfo
         {
-        //    internal string Name { get; set; }
             internal string MethodPath { get; set; }
             internal Type ReturnType { get; set; }
             internal Type BaseReturnType { get; set; }
             internal bool IsGenericType { get; set; }
 
             internal string MethodPartialUrl { get; set; }
-            internal string MethodFullUrl => (MethodPath ?? "") + (MethodPartialUrl ?? "");
+            internal string MethodFullUrl => (MethodPath ?? "") + (!string.IsNullOrWhiteSpace(MethodPath) && !string.IsNullOrWhiteSpace(MethodPartialUrl) ? "/" : "") + (MethodPartialUrl?.Trim('/') ?? "");
             internal RequestTypes RequestType { get; set; }
             internal ContentTypes ContentType { get; set; }
             internal List<HeaderAttribute> HeaderAttributes { get; set; }
