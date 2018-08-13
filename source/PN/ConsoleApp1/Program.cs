@@ -6,32 +6,73 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using static PN.Network.HTTP;
 using static PN.Network.HTTP.Entities;
 
 namespace ConsoleApp1
 {
+
     class Program
     {
+        static int count = 0;
+        static long val = 0;
+
+        static List<byte> list = new List<byte>();
+
+
+        private static void HTTP_DownloadProgressChanged(object sender, ProgressChangedEventArgs e)
+        {
+            val += e.Recieved;
+
+            count++;
+
+            var sd = val / count;
+            Console.Write($"\r{GetFriendlyLength((ulong)e.TotalRecieved)} / {GetFriendlyLength((ulong)e.MaxBytes)} bytes read {GetFriendlyLength((ulong)sd)}");
+
+        }
+        private static string GetFriendlyLength(ulong bandwidth)
+        {
+            var ordinals = new[] { string.Empty, "K", "M", "G", "T", "P", "E" };
+
+
+            decimal rate = (decimal)bandwidth;
+
+            var ordinal = 0;
+
+            while (rate > 1024)
+            {
+                rate /= 1024;
+                ordinal++;
+            }
+
+            return (string.Format("{0} {1}B", Math.Round(rate, 2, MidpointRounding.AwayFromZero), ordinals[ordinal]));
+        }
         static void Main(string[] args)
         {
-        //    StaticTest2.TestProp = "";
-        //    Console.WriteLine(StaticTest2.TestProp);
+            //var abc = API___.Files(null).Result;
+            
+            DownloadProgressChanged += HTTP_DownloadProgressChanged;
+            var fsdfsdf = Request<byte[]>("http://ftp.byfly.by/test/10gb.txt");
+
+
+            //    StaticTest2.TestProp = "";
+            //    Console.WriteLine(StaticTest2.TestProp);
             //API.Init("http://projects.pushnovn.com", new List<HeaderAttribute>()
             //    {
             //        new HeaderAttribute("ppppppppp", "*****************"),
             //        new HeaderAttribute("hgggggggggg", "sssssssssssssssssssss"),
             //    });
 
-            var mod = new TestRequsetModel()
-            {
-                Headers = new List<HeaderAttribute>()
-                {
-                    new HeaderAttribute("1", "2"),
-                    new HeaderAttribute("3", "4"),
-                }
-            };
+            //var mod = new TestRequsetModel()
+            //{
+            //    Headers = new List<HeaderAttribute>()
+            //    {
+            //        new HeaderAttribute("1", "2"),
+            //        new HeaderAttribute("3", "4"),
+            //    }
+            //};
 
             //    var ppp = API.Testtt.TestAsync(mod).Result;
             //    var ppp = API.Testtt.Test(mod);
@@ -41,94 +82,96 @@ namespace ConsoleApp1
 
             //        var ttt = API.Testtt.TestAsync(mod).Result;
             //        var ttt2 = API.Testtt.Test(mod);
-            var isValT = (new byte[] { 1, 3 }).GetType().IsValueType;
+            //     var isValT = (new byte[] { 1, 3 }).GetType().IsValueType;
 
-            var arr = PN.Utils.Utils.Converters.ToByteArray(12.34);
-            var dbl = PN.Utils.Utils.Converters.FromByteArray<Double>(arr);
+            //     var arr = PN.Utils.Utils.Converters.ToByteArray(12.34);
+            //     var dbl = PN.Utils.Utils.Converters.FromByteArray<Double>(arr);
 
-            Console.WriteLine($"{12.34} => {dbl}");
+            //     Console.WriteLine($"{12.34} => {dbl}");
 
-            StaticTest.Get();
-
-            while (true)
-                Console.ReadLine();
-
-            Task.Run(async () =>
-            {
-                var typ = await API___.Files(new FilesRequestModel());
-
-            //    var files = JsonConvert.DeserializeObject(respone.ResponseText, typeof(List<ServerFileInfo>));
-                var teststr = API_VR.TestString(new VersionRequestModel()
-                {
-                    Token = "p4XsNk3x1WLbmL1WOROBGYEpmN2cjJsXwSSl666Jpe6ZbrUYpWk9z8rnNQFLZVmGeG4TXSef8CvW2GIk3v9y2aLsuAMfgjabYwVbYMLSvLqaOA/bs76wcUxZxYVj4Z4hSlljc2yll5zxTNbIiRqMf2RAKbE5zsVOT56lVrztYNRYDkXzHTNx8XecTUZ3a+RpQJdbifcgVkJJsM3Ze0gePg==",
-                    Version = "123",
-                });
-
-                var testint = API_VR.TestInt(new VersionRequestModel()
-                {
-                    Token = "p4XsNk3x1WLbmL1WOROBGYEpmN2cjJsXwSSl666Jpe6ZbrUYpWk9z8rnNQFLZVmGeG4TXSef8CvW2GIk3v9y2aLsuAMfgjabYwVbYMLSvLqaOA/bs76wcUxZxYVj4Z4hSlljc2yll5zxTNbIiRqMf2RAKbE5zsVOT56lVrztYNRYDkXzHTNx8XecTUZ3a+RpQJdbifcgVkJJsM3Ze0gePg==",
-                    Version = "123",
-                });
-
-                var test00 = await API_VR.Version(new VersionRequestModel()
-                {
-                    Token = "p4XsNk3x1WLbmL1WOROBGYEpmN2cjJsXwSSl666Jpe6ZbrUYpWk9z8rnNQFLZVmGeG4TXSef8CvW2GIk3v9y2aLsuAMfgjabYwVbYMLSvLqaOA/bs76wcUxZxYVj4Z4hSlljc2yll5zxTNbIiRqMf2RAKbE5zsVOT56lVrztYNRYDkXzHTNx8XecTUZ3a+RpQJdbifcgVkJJsM3Ze0gePg==",
-                    Version = "123",
-                });
-
-                var test0 = await API_test.GetRequestInfo(new VersionRequestModel()
-                {
-                    Token = "p4XsNk3x1WLbmL1WOROBGYEpmN2cjJsXwSSl666Jpe6ZbrUYpWk9z8rnNQFLZVmGeG4TXSef8CvW2GIk3v9y2aLsuAMfgjabYwVbYMLSvLqaOA/bs76wcUxZxYVj4Z4hSlljc2yll5zxTNbIiRqMf2RAKbE5zsVOT56lVrztYNRYDkXzHTNx8XecTUZ3a+RpQJdbifcgVkJJsM3Ze0gePg==",
-                    Version = "123",
-                });
-
-                var test01 = await API_test_2.GetImage(new VersionRequestModel()
-                {
-                    Token = "p4XsNk3x1WLbmL1WOROBGYEpmN2cjJsXwSSl666Jpe6ZbrUYpWk9z8rnNQFLZVmGeG4TXSef8CvW2GIk3v9y2aLsuAMfgjabYwVbYMLSvLqaOA/bs76wcUxZxYVj4Z4hSlljc2yll5zxTNbIiRqMf2RAKbE5zsVOT56lVrztYNRYDkXzHTNx8XecTUZ3a+RpQJdbifcgVkJJsM3Ze0gePg==",
-                    Version = "123",
-                });
-                
-                var ttt = Convert.ToBase64String(test01.ResponseBody);
-
-         //       Console.WriteLine(ttt);
-                //StreamReader reader = new StreamReader(test0.ResponseStream);
-                //string text = reader.ReadToEnd();
-
-       //         var yy =  JsonConvert.DeserializeObject(null, typeof(TestModel));
-
-                var tt = new List<string>() { "", "" };
-                var t = tt.IndexOf(null);
-
-                var test1 = API.TestClass.Test(mod);
-
-                var test2 = await API.TestClass.TestAsync(mod);
+            //     StaticTest.Get();
 
 
 
-                var ppp = API.Testtt.Test(mod);
-                Console.WriteLine("Sync: " + (ppp.Exception?.ToString() ?? ppp.id));
+            //     Task.Run(async () =>
+            //     {
+            //         var typ = await API___.Files(new FilesRequestModel());
 
-                ppp = await API.Testtt.TestAsync(mod);
-                Console.WriteLine("Async: " + (ppp.Exception?.ToString() ?? ppp.id));
+            //     //    var files = JsonConvert.DeserializeObject(respone.ResponseText, typeof(List<ServerFileInfo>));
+            //         var teststr = API_VR.TestString(new VersionRequestModel()
+            //         {
+            //             Token = "p4XsNk3x1WLbmL1WOROBGYEpmN2cjJsXwSSl666Jpe6ZbrUYpWk9z8rnNQFLZVmGeG4TXSef8CvW2GIk3v9y2aLsuAMfgjabYwVbYMLSvLqaOA/bs76wcUxZxYVj4Z4hSlljc2yll5zxTNbIiRqMf2RAKbE5zsVOT56lVrztYNRYDkXzHTNx8XecTUZ3a+RpQJdbifcgVkJJsM3Ze0gePg==",
+            //             Version = "123",
+            //         });
 
-            });
+            //         var testint = API_VR.TestInt(new VersionRequestModel()
+            //         {
+            //             Token = "p4XsNk3x1WLbmL1WOROBGYEpmN2cjJsXwSSl666Jpe6ZbrUYpWk9z8rnNQFLZVmGeG4TXSef8CvW2GIk3v9y2aLsuAMfgjabYwVbYMLSvLqaOA/bs76wcUxZxYVj4Z4hSlljc2yll5zxTNbIiRqMf2RAKbE5zsVOT56lVrztYNRYDkXzHTNx8XecTUZ3a+RpQJdbifcgVkJJsM3Ze0gePg==",
+            //             Version = "123",
+            //         });
+
+            //         var test00 = await API_VR.Version(new VersionRequestModel()
+            //         {
+            //             Token = "p4XsNk3x1WLbmL1WOROBGYEpmN2cjJsXwSSl666Jpe6ZbrUYpWk9z8rnNQFLZVmGeG4TXSef8CvW2GIk3v9y2aLsuAMfgjabYwVbYMLSvLqaOA/bs76wcUxZxYVj4Z4hSlljc2yll5zxTNbIiRqMf2RAKbE5zsVOT56lVrztYNRYDkXzHTNx8XecTUZ3a+RpQJdbifcgVkJJsM3Ze0gePg==",
+            //             Version = "123",
+            //         });
+
+            //         var test0 = await API_test.GetRequestInfo(new VersionRequestModel()
+            //         {
+            //             Token = "p4XsNk3x1WLbmL1WOROBGYEpmN2cjJsXwSSl666Jpe6ZbrUYpWk9z8rnNQFLZVmGeG4TXSef8CvW2GIk3v9y2aLsuAMfgjabYwVbYMLSvLqaOA/bs76wcUxZxYVj4Z4hSlljc2yll5zxTNbIiRqMf2RAKbE5zsVOT56lVrztYNRYDkXzHTNx8XecTUZ3a+RpQJdbifcgVkJJsM3Ze0gePg==",
+            //             Version = "123",
+            //         });
+
+            //         var test01 = await API_test_2.GetImage(new VersionRequestModel()
+            //         {
+            //             Token = "p4XsNk3x1WLbmL1WOROBGYEpmN2cjJsXwSSl666Jpe6ZbrUYpWk9z8rnNQFLZVmGeG4TXSef8CvW2GIk3v9y2aLsuAMfgjabYwVbYMLSvLqaOA/bs76wcUxZxYVj4Z4hSlljc2yll5zxTNbIiRqMf2RAKbE5zsVOT56lVrztYNRYDkXzHTNx8XecTUZ3a+RpQJdbifcgVkJJsM3Ze0gePg==",
+            //             Version = "123",
+            //         });
+
+            //         var ttt = Convert.ToBase64String(test01.ResponseBody);
+
+            //  //       Console.WriteLine(ttt);
+            //         //StreamReader reader = new StreamReader(test0.ResponseStream);
+            //         //string text = reader.ReadToEnd();
+
+            ////         var yy =  JsonConvert.DeserializeObject(null, typeof(TestModel));
+
+            //         var tt = new List<string>() { "", "" };
+            //         var t = tt.IndexOf(null);
+
+            //         var test1 = API.TestClass.Test(mod);
+
+            //         var test2 = await API.TestClass.TestAsync(mod);
+
+
+
+            //         var ppp = API.Testtt.Test(mod);
+            //         Console.WriteLine("Sync: " + (ppp.Exception?.ToString() ?? ppp.id));
+
+            //         ppp = await API.Testtt.TestAsync(mod);
+            //         Console.WriteLine("Async: " + (ppp.Exception?.ToString() ?? ppp.id));
+
+            //     });
 
         }
+
+
     }
 
-    
+
+
+
+
 
     public class StaticTest
     {
         public static string Get(string ooo = null)
         {
-            var res = HTTP.Request<byte[]>("https://www.google.by/images/branding/googlelogo/2x/googlelogo_color_120x44dp.png", null, RequestTypes.GET, new IgnoreGlobalHeadersAttribute()
-                
+            var res = HTTP.Request<byte[]>("https://www.google.by/images/branding/googlelogo/2x/googlelogo_color_120x44dp.png");
+
                 //,new HeaderAttribute[2] { new HeaderAttribute("1k", "1v"), new HeaderAttribute("2k", "2v") },
                 //new List<HeaderAttribute> { new HeaderAttribute("1kLLL", "1vLLL"), new HeaderAttribute("2kLLL", "2vLLL") }
 
-
-                );
 
             var pict = Convert.ToBase64String(res);
 
@@ -157,7 +200,7 @@ namespace ConsoleApp1
             var bewarr = PN.Utils.Utils.Converters.StringToBytes("");
 
 
-            PN.Utils.Utils.Debug.CalculateMethodTimeExecution(() => 
+            PN.Utils.Utils.Debug.CalculateMethodTimeExecution(() =>
             {
                 StackTrace st = new StackTrace();
                 StackFrame[] fr = st.GetFrames();
@@ -236,8 +279,9 @@ namespace ConsoleApp1
             exampl = SSS2.Example;
 
             MethodBase ttt = null;
-            PN.Utils.Utils.Debug.CalculateMethodTimeExecution(() => {
-                 ttt = new StackTrace().GetFrame(3).GetMethod();
+            PN.Utils.Utils.Debug.CalculateMethodTimeExecution(() =>
+            {
+                ttt = new StackTrace().GetFrame(3).GetMethod();
             }, "single");
             ttt = new StackTrace().GetFrame(1).GetMethod();
             var ssp = ttt.GetParameters();
@@ -247,9 +291,17 @@ namespace ConsoleApp1
     }
 
 
-    // [Url("http://videoreg.pushnovn.com:1583/api/Files?Version=%7BVersion%7D&Token=jICmeDBf2e2vyfCkzlI87P1eG/PIQFjFeanVrXxgj7nr+o7T4LiNYWArvbOU3SrCIrcc2aAjNN4zIA6LgJmMmtfyGm/1SShlVZ7cStft6LblcjXg3Q0CIMkdSUtQ5sQy44WWoU4X7KLC3oiRNbyg4sJeGGta3qmxEK+v7VXTJmQ06R5yRCpF27LANQ8YVT4AXAK")]
+
+
+
+
+
+
+
+
+    [Url("http://videoreg.pushnovn.com:1583/api/Files?Version=%7BVersion%7D&Token=jICmeDBf2e2vyfCkzlI87P1eG/PIQFjFeanVrXxgj7nr+o7T4LiNYWArvbOU3SrCIrcc2aAjNN4zIA6LgJmMmtfyGm/1SShlVZ7cStft6LblcjXg3Q0CIMkdSUtQ5sQy44WWoU4X7KLC3oiRNbyg4sJeGGta3qmxEK+v7VXTJmQ06R5yRCpF27LANQ8YVT4AXAK")]
     // [Url("http://videoreg.pushnovn.com:1583/")]
-    [Url("https://www.google.by/images/branding/googlelogo/2x/")]
+    //[Url("https://www.google.by/images/branding/googlelogo/2x/")]
 
     public class API___ : HTTP
     {
@@ -288,9 +340,9 @@ namespace ConsoleApp1
         public long FileSize { get; set; }
         public bool IsDownloaded { get; set; }
     }
-    
 
-    
+
+
 
     public class SSS2 : SSS//, ISSS
     {
@@ -302,7 +354,7 @@ namespace ConsoleApp1
         protected override string Get(string key) => dict.ContainsKey(key) ? dict[key] : null;
         protected override void Set(string key, string value) => dict[key] = value;
     }
-    
+
     public class SSS3 : SSS2
     {
         [NeedAuth]
@@ -352,9 +404,9 @@ namespace ConsoleApp1
 
     public class VersionRequestModel : Entities.RequestEntity
     {
-   //     [JsonIgnore]
+        //     [JsonIgnore]
         public string Version { get; set; }
- //       [JsonIgnore]
+        //       [JsonIgnore]
         public string Token { get; set; }
     }
     public class VersionResponseModel : Entities.ResponseEntity
@@ -382,7 +434,7 @@ namespace ConsoleApp1
             [IgnoreGlobalHeaders]
             [Url("")]
             public static Task<TestModel> TestAsync(RequestEntity ttt) => Base(ttt);
-            
+
             [Header("aaaaaa", "bbbbbbbbbbbbbbb")]
             [IgnoreGlobalHeaders]
             [Url("")]
