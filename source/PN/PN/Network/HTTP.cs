@@ -32,13 +32,10 @@ namespace PN.Network
         /// <summary>
         /// All downloading data will be stored at RAM. If you want change this, set flushBuffer value to true, for clearing memory after downloading part of data. 
         /// </summary>
-        /// <param name="flushBuffer">Flush the buffer after receiving, if true, buffer will be flushed every time after invoking DownloadProgressChanged event</param>
         /// <param name="customAction">Is action will be invoked every time when new data will arrived. Use it when you trying to download 2 or more files in a row</param>
         /// <returns>Method will return object that you specified as generic type</returns>
-        public static TResponse Request<TResponse>(string url, RequestEntity requestEntity = null,
-            bool flushBuffer = false, Action<ProgressChangedEventArgs> customAction = null, params object[] settings)
+        public static TResponse Request<TResponse>(string url, RequestEntity requestEntity = null, params object[] settings)
         {
-            IsNeedToFlushBuffer = flushBuffer;
             var headers = settings.OfType<HeaderAttribute>()?.ToList();
             settings.OfType<IEnumerable<HeaderAttribute>>()?.ToList()?.ForEach(l => headers.AddRange(l));
 
@@ -56,7 +53,7 @@ namespace PN.Network
                 HeaderAttributes = headers,
             };
 
-            return (TResponse) CreatePrivateBase(requestEntity, methodInfo, customAction);
+            return (TResponse)CreatePrivateBase(requestEntity, methodInfo);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -65,15 +62,14 @@ namespace PN.Network
         {
             var method = typeof(HTTP).GetMethod(nameof(BaseAsyncPrivate), BindingFlags.NonPublic | BindingFlags.Static);
             var generic = method?.MakeGenericMethod(methodInfo.ReturnType);
-            var task = generic?.Invoke(null, new object[] {requestModel, customAction});
+            var task = generic?.Invoke(null, new object[] { requestModel, customAction });
 
             return methodInfo.IsGenericType
                 ? task
                 : task.GetType().GetProperty(nameof(Task<dynamic>.Result)).GetValue(task, null);
         }
 
-        private static async Task<T> BaseAsyncPrivate<T>(RequestEntity requestModel, ReflMethodInfo methodInfo,
-            Action<ProgressChangedEventArgs> customAction)
+        private static async Task<T> BaseAsyncPrivate<T>(RequestEntity requestModel, ReflMethodInfo methodInfo)
         {
             try
             {
@@ -82,7 +78,7 @@ namespace PN.Network
                 requestModel = requestModel ?? new RequestEntity();
                 var requestUri =
                     new Uri(Utils.Utils.Internal.ProcessComplexString(methodInfo.MethodFullUrl, requestModel));
-                HttpWebRequest request = (HttpWebRequest) WebRequest.Create(requestUri);
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create(requestUri);
                 request.Method = methodInfo.RequestType.ToString();
                 request.ContentType = ContentTypeToString(methodInfo.ContentType);
                 request.Timeout = requestModel.Timeout ?? request.Timeout;
@@ -131,7 +127,7 @@ namespace PN.Network
 
                 #region Execute request
 
-                using (var response = (HttpWebResponse) await request.GetResponseAsync())
+                using (var response = (HttpWebResponse)await request.GetResponseAsync())
                 {
                     var totalNeed = response.ContentLength;
 
@@ -141,9 +137,8 @@ namespace PN.Network
 
                     using (var stream = response.GetResponseStream())
                     {
-                        // var responseBody = Utils.Utils.Converters.StreamToBytes(stream);
-
                         var bytesRead = 0;
+
                         do
                         {
                             bytesRead = await stream?.ReadAsync(bytes, 0, BUFFER_SIZE);
@@ -157,10 +152,10 @@ namespace PN.Network
                                 RecievedData = bytes
                             };
 
-                            customAction?.Invoke(args);
+                            requestModel.CustomAction?.Invoke(args);
                             DownloadProgressChanged?.Invoke(null, args);
 
-                            if (IsNeedToFlushBuffer)
+                            if (requestModel.FlushBuffer)
                                 bytes = new byte[BUFFER_SIZE];
                             else
                                 list.AddRange(bytes.Take(bytesRead));
@@ -169,7 +164,7 @@ namespace PN.Network
 
                         var responseBody = list.ToArray();
                         var responseJson = Encoding.UTF8.GetString(responseBody);
-                        LastResponse = new ResponseEntity() {ResponseBody = responseBody, ResponseText = responseJson};
+                        LastResponse = new ResponseEntity() { ResponseBody = responseBody, ResponseText = responseJson };
 
                         object instance;
                         try
@@ -196,10 +191,10 @@ namespace PN.Network
                             nameof(ResponseEntity.ResponseText));
                         Utils.Utils.Internal.TrySetValue(ref instance, responseJson,
                             nameof(ResponseEntity.ResponseDynamic), true);
-                        Utils.Utils.Internal.TrySetValue(ref instance, (int) response.StatusCode,
+                        Utils.Utils.Internal.TrySetValue(ref instance, (int)response.StatusCode,
                             nameof(ResponseEntity.HttpCode));
 
-                        return (T) instance;
+                        return (T)instance;
                     }
                 }
 
@@ -207,9 +202,9 @@ namespace PN.Network
             }
             catch (Exception ex)
             {
-                LastResponse = new ResponseEntity() {Exception = ex};
+                LastResponse = new ResponseEntity() { Exception = ex };
                 var instance = Utils.Utils.Internal.CreateDefaultObject(methodInfo.ReturnType);
-                return (T) Utils.Utils.Internal.TrySetValue(ref instance, ex, nameof(ResponseEntity.Exception));
+                return (T)Utils.Utils.Internal.TrySetValue(ref instance, ex, nameof(ResponseEntity.Exception));
             }
         }
 
@@ -367,6 +362,11 @@ namespace PN.Network
                 [JsonIgnore] public byte[] Body { get; set; }
 
                 [JsonIgnore] public int? Timeout { get; set; }
+                /// <summary>
+                /// Flush the buffer after receiving, if true, buffer will be flushed every time after invoking DownloadProgressChanged event</param>
+                /// </summary>
+                [JsonIgnore] public bool FlushBuffer { get; set; } = false;
+                [JsonIgnore] public Action<ProgressChangedEventArgs> CustomAction { get; set; }
             }
 
             public class ResponseEntity
@@ -407,7 +407,6 @@ namespace PN.Network
 
 
         private const int BUFFER_SIZE = 81920;
-        private static bool IsNeedToFlushBuffer = false;
 
         public static event EventHandler<ProgressChangedEventArgs> DownloadProgressChanged;
 
