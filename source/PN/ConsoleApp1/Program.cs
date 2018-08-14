@@ -21,17 +21,13 @@ namespace ConsoleApp1
 
         static List<byte> list = new List<byte>();
 
-
+        private static void HTTP_DownloadProgressChanged(DownloadProgressChangedEventArgs e) => HTTP_DownloadProgressChanged(null, e);
         private static void HTTP_DownloadProgressChanged(object sender, DownloadProgressChangedEventArgs e)
         {
             val += e.RecievedBytesCount;
-
-            count++;
-
-            var sd = val / count;
-            Console.Write($"\r{GetFriendlyLength((ulong)e.TotalRecievedBytesCount)} / {GetFriendlyLength((ulong)e.ResponseBodyLength)} bytes read {GetFriendlyLength((ulong)sd)}");
-
+            Console.Write($"\r{GetFriendlyLength((ulong)e.TotalRecievedBytesCount)} / {GetFriendlyLength((ulong)e.ResponseBodyLength)} bytes read {GetFriendlyLength((ulong)(val / ++count))}");
         }
+
         private static string GetFriendlyLength(ulong bandwidth)
         {
             var ordinals = new[] { string.Empty, "K", "M", "G", "T", "P", "E" };
@@ -51,10 +47,16 @@ namespace ConsoleApp1
         }
         static void Main(string[] args)
         {
+            var testProp = AS.API___.TestProp;
+
+
+
+            var typ = AS.API___.Files(new FilesRequestModel()).Result;
+            var lastResp = HTTP.LastResponse;
             //var abc = API___.Files(null).Result;
-            
-            DownloadProgressChanged += HTTP_DownloadProgressChanged;
-            var fsdfsdf = Request<byte[]>("http://ftp.byfly.by/test/10gb.txt");
+
+            //    HTTP.DownloadProgressChanged += HTTP_DownloadProgressChanged;
+            var fsdfsdf = Request<byte[]>("http://ftp.byfly.by/test/10gb.txt", new RequestEntity() { OnDownloadProgressChangedAction = HTTP_DownloadProgressChanged });
 
 
             //    StaticTest2.TestProp = "";
@@ -95,7 +97,7 @@ namespace ConsoleApp1
 
             //     Task.Run(async () =>
             //     {
-            //         var typ = await API___.Files(new FilesRequestModel());
+                  //   var typ = await API___.Files(new FilesRequestModel());
 
             //     //    var files = JsonConvert.DeserializeObject(respone.ResponseText, typeof(List<ServerFileInfo>));
             //         var teststr = API_VR.TestString(new VersionRequestModel()
@@ -181,14 +183,14 @@ namespace ConsoleApp1
             Console.WriteLine();
 
 
-            var ppp = API___.DownloadGoogleLogo();
+            var ppp = AS.API___.DownloadGoogleLogo();
 
             pict = Convert.ToBase64String(ppp);
             Console.WriteLine(pict);
             Console.ReadLine();
 
 
-            var pp = API___.FilesTest(new FilesRequestModel()).Result;
+            var pp = AS.API___.FilesTest(new FilesRequestModel()).Result;
 
 
 
@@ -299,22 +301,31 @@ namespace ConsoleApp1
 
 
 
-    [Url("http://videoreg.pushnovn.com:1583/api/Files?Version=%7BVersion%7D&Token=jICmeDBf2e2vyfCkzlI87P1eG/PIQFjFeanVrXxgj7nr+o7T4LiNYWArvbOU3SrCIrcc2aAjNN4zIA6LgJmMmtfyGm/1SShlVZ7cStft6LblcjXg3Q0CIMkdSUtQ5sQy44WWoU4X7KLC3oiRNbyg4sJeGGta3qmxEK+v7VXTJmQ06R5yRCpF27LANQ8YVT4AXAK")]
-    // [Url("http://videoreg.pushnovn.com:1583/")]
-    //[Url("https://www.google.by/images/branding/googlelogo/2x/")]
 
-    public class API___ : HTTP
+    public class AS
     {
-        [RequestType(RequestTypes.GET)]
-        [Url("kE5lGUznLKEiGvGFig==")]
-        public static Task<List<ServerFileInfo>> Files(FilesRequestModel ttt) => Base(ttt);
+        //[Url("http://videoreg.pushnovn.com:1583/api/Files?Version=%7BVersion%7D&Token=jICmeDBf2e2vyfCkzlI87P1eG/PIQFjFeanVrXxgj7nr+o7T4LiNYWArvbOU3SrCIrcc2aAjNN4zIA6LgJmMmtfyGm/1SShlVZ7cStft6LblcjXg3Q0CIMkdSUtQ5sQy44WWoU4X7KLC3oiRNbyg4sJeGGta3qmxEK+v7VXTJmQ06R5yRCpF27LANQ8YVT4AXAK")]
+        // [Url("http://videoreg.pushnovn.com:1583/")]
+        [Url("https://www.google.by/images/branding/googlelogo/2x/")]
+        public class API___ : HTTP
+        {
+            [UserAgent("sdfsghfj")]
+            [Url("googlelogo_color_120x44dp.png")]
+            public static byte[] TestProp => Base();
 
-        [Url("kE5lGUznLKEiGvGFig==")]
-        public static Task<FilesResponseModel> FilesTest(FilesRequestModel ttt) => Base(ttt);
+            [RequestType(RequestTypes.GET)]
+            [Url("kE5lGUznLKEiGvGFig==")]
+            public static Task<List<ServerFileInfo>> Files(FilesRequestModel ttt) => Base(ttt);
 
-        [Url("googlelogo_color_120x44dp.png")]
-        public static byte[] DownloadGoogleLogo() => Base();
+            [Url("kE5lGUznLKEiGvGFig==")]
+            public static Task<FilesResponseModel> FilesTest(FilesRequestModel ttt) => Base(ttt);
+
+            [Url("googlelogo_color_120x44dp.png")]
+            public static byte[] DownloadGoogleLogo() => Base();
+        }
     }
+
+   
 
     public class FilesRequestModel : PN.Network.HTTP.Entities.RequestEntity
     {
@@ -366,7 +377,6 @@ namespace ConsoleApp1
         [NeedAuth]
         public static TestModel ExampleTest3Model { get => Base(); set => Base(value); }
     }
-
 
 
 

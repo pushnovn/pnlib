@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Pushnovn.PN</id>
-    <version>0.1.3.1</version>
+    <version>0.1.3.2</version>
     <title>PN lib (Pre-Alpha)</title>
     <authors>Pushnovn</authors>
     <owners>Pushnovn</owners>
@@ -10,8 +10,10 @@
     <description>Internal PN lib</description>
     <releaseNotes>
 HTTP:
-- Fixed ignoring method name if URL attr is missing.
-- Fixed duplication slashes if it set in URL attr.
+- Added download progress changed event.
+- Added to RequestEntity Action, which called on progress changed.
+- Added workaround to download big files (you may write it on disk, without keeping hole file in memory).
+- Added some XML comments.
     </releaseNotes>
     <projectUrl>http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http</projectUrl>
     <copyright>Copyright 2018</copyright>

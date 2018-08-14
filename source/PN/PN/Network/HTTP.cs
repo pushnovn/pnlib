@@ -49,9 +49,10 @@ namespace PN.Network
                 ContentType = settings.OfType<ContentTypes>().LastOrDefault(),
                 IgnoreGlobalHeaders = settings.OfType<IgnoreGlobalHeadersAttribute>()?.Count() > 0,
                 HeaderAttributes = headers,
+                UserAgentString = settings.OfType<UserAgentAttribute>()?.LastOrDefault()?.UserAgentString,
             };
 
-            return (TResponse)CreatePrivateBase(requestEntity, methodInfo);
+            return (TResponse) CreatePrivateBase(requestEntity, methodInfo);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -71,11 +72,11 @@ namespace PN.Network
                 #region URL and request type
 
                 requestModel = requestModel ?? new RequestEntity();
-                var requestUri =
-                    new Uri(Utils.Utils.Internal.ProcessComplexString(methodInfo.MethodFullUrl, requestModel));
+                var requestUri = new Uri(Utils.Utils.Internal.ProcessComplexString(methodInfo.MethodFullUrl, requestModel));
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(requestUri);
                 request.Method = methodInfo.RequestType.ToString();
                 request.ContentType = ContentTypeToString(methodInfo.ContentType);
+                request.UserAgent = methodInfo.UserAgentString;
                 request.Timeout = requestModel.Timeout ?? request.Timeout;
 
                 #endregion
@@ -164,7 +165,7 @@ namespace PN.Network
             {
                 LastResponse = new ResponseEntity() { Exception = ex };
                 var instance = Utils.Utils.Internal.CreateDefaultObject(methodInfo.ReturnType);
-                return (T)Utils.Utils.Internal.TrySetValue(ref instance, ex, nameof(ResponseEntity.Exception));
+                return (T) Utils.Utils.Internal.TrySetValue(ref instance, ex, nameof(ResponseEntity.Exception));
             }
         }
 
@@ -173,24 +174,36 @@ namespace PN.Network
         {
             var method = new StackTrace().GetFrame(2).GetMethod();
 
+            MemberInfo methodInfo = method;
+            var methodName = method.Name;
             var baseResponseModelType = (method as MethodInfo)?.ReturnType;
             var isGenericType = baseResponseModelType.IsGenericType;
             var responseModelType = isGenericType ? baseResponseModelType.GetGenericArguments()[0] : baseResponseModelType;
-
-            var url = method.GetCustomAttributes()?.OfType<UrlAttribute>()?.FirstOrDefault();
-            var requestType = method.GetCustomAttributes()?.OfType<RequestTypeAttribute>()?.FirstOrDefault();
-            var contentType = method.GetCustomAttributes()?.OfType<ContentTypeAttribute>()?.FirstOrDefault();
-            var ignoreGlobalHeaders = method.GetCustomAttributes()?.OfType<IgnoreGlobalHeadersAttribute>()?.FirstOrDefault();
-            var headers = method.GetCustomAttributes()?.OfType<HeaderAttribute>()?.ToList();
+            
+            if (method.IsSpecialName && method.Name.StartsWith("get_"))
+            {
+                methodName = method.Name.Substring(4);
+                methodInfo = method.ReflectedType.GetProperty(methodName);
+            }
+            
+            var url = methodInfo.GetCustomAttributes()?.OfType<UrlAttribute>()?.FirstOrDefault();
+            var requestType = methodInfo.GetCustomAttributes()?.OfType<RequestTypeAttribute>()?.FirstOrDefault();
+            var contentType = methodInfo.GetCustomAttributes()?.OfType<ContentTypeAttribute>()?.FirstOrDefault();
+            var ignoreGlobalHeaders = methodInfo.GetCustomAttributes()?.OfType<IgnoreGlobalHeadersAttribute>()?.FirstOrDefault();
+            var headers = methodInfo.GetCustomAttributes()?.OfType<HeaderAttribute>()?.ToList();
+            var userAgentString = methodInfo.GetCustomAttributes()?.OfType<UserAgentAttribute>()?.FirstOrDefault()?.UserAgentString;
 
             var temp_uri = string.Empty;
-            var typ = method.ReflectedType;
+            var typ = methodInfo.ReflectedType;
             while (typ != null)
             {
                 var att = typ.GetCustomAttributes(typeof(UrlAttribute), true).FirstOrDefault() as UrlAttribute;
 
                 var checkBaseUrl = typ.ReflectedType == null && string.IsNullOrWhiteSpace(_baseUrl) == false;
                 temp_uri = (checkBaseUrl ? BaseUrl : (att?.Url ?? typ.Name).Trim('/') + "/") + temp_uri;
+
+                if (typ.IsSubclassOf(typeof(HTTP)))
+                    break;
 
                 typ = typ.ReflectedType;
             }
@@ -201,11 +214,12 @@ namespace PN.Network
                 BaseReturnType = baseResponseModelType,
                 IsGenericType = isGenericType,
                 MethodPath = temp_uri.TrimEnd('/'),
-                MethodPartialUrl = url?.Url ?? method.Name,
+                MethodPartialUrl = url?.Url ?? methodName,
                 RequestType = requestType?.RequestType ?? RequestTypes.GET,
                 ContentType = contentType?.ContentType ?? ContentTypes.JSON,
                 IgnoreGlobalHeaders = ignoreGlobalHeaders != null,
                 HeaderAttributes = headers,
+                UserAgentString = userAgentString,
             };
         }
 
@@ -274,6 +288,7 @@ namespace PN.Network
             internal ContentTypes ContentType { get; set; }
             internal List<HeaderAttribute> HeaderAttributes { get; set; }
             internal bool IgnoreGlobalHeaders { get; set; }
+            internal string UserAgentString { get; set; }
         }
 
         #region Attributes
@@ -338,6 +353,20 @@ namespace PN.Network
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
         public class IgnoreGlobalHeadersAttribute : Attribute
         {
+        }
+
+        /// <summary>
+        /// User-Agent string
+        /// </summary>
+        [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
+        protected class UserAgentAttribute : Attribute
+        {
+            public readonly string UserAgentString;
+
+            public UserAgentAttribute(string userAgentString)
+            {
+                UserAgentString = userAgentString;
+            }
         }
 
         #endregion
