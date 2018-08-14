@@ -216,7 +216,7 @@ namespace PN.Utils
                 {
                     Match m = matches[i];
 
-                    str += model.GetType().GetProperty(m.Value.Substring(1, m.Length - 2))?.GetValue(model) as String ?? m.Value;
+                    str += model.GetType().GetProperty(m.Value.Substring(1, m.Length - 2))?.GetValue(model)?.ToString() ?? m.Value;
 
                     var indexOfLastMatchChar = m.Index + m.Length;
 
