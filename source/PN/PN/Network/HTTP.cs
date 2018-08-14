@@ -12,7 +12,9 @@ using System.Runtime.CompilerServices;
 using static PN.Network.HTTP.Entities;
 
 
-#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+/// <summary>
+/// Network library
+/// </summary>
 namespace PN.Network
 {
     /// <summary>
@@ -49,7 +51,7 @@ namespace PN.Network
                 HeaderAttributes = headers,
             };
 
-            return (TResponse) CreatePrivateBase(requestEntity, methodInfo);
+            return (TResponse)CreatePrivateBase(requestEntity, methodInfo);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -276,6 +278,10 @@ namespace PN.Network
 
         #region Attributes
 
+
+        /// <summary>
+        /// Host adress or just sub-url
+        /// </summary>
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
         protected class UrlAttribute : Attribute
         {
@@ -287,6 +293,9 @@ namespace PN.Network
             }
         }
 
+        /// <summary>
+        /// RequestType attribute class used to decorate Web API request objects
+        /// </summary>
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
         protected class RequestTypeAttribute : Attribute
         {
@@ -298,6 +307,9 @@ namespace PN.Network
             }
         }
 
+        /// <summary>
+        /// The HTTP MIME type of the output stream. The default value is "json"
+        /// </summary>
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
         protected class ContentTypeAttribute : Attribute
         {
@@ -320,7 +332,9 @@ namespace PN.Network
                 Value = value;
             }
         }
-
+        /// <summary>
+        /// GlobalHeadersAttribute will be ignored for action where you will define IgnoreHeadersAttribute
+        /// </summary>
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
         public class IgnoreGlobalHeadersAttribute : Attribute
         {
@@ -328,16 +342,37 @@ namespace PN.Network
 
         #endregion
 
+        /// <summary>
+        /// HTTP defines a set of request methods to indicate the desired action to be performed for a given resource
+        /// </summary>
         public enum RequestTypes
         {
+            /// <summary>
+            /// The GET method requests a representation of the specified resource. Requests using GET should only retrieve data.
+            /// </summary>
             GET,
+            /// <summary>
+            /// The POST method is used to submit an entity to the specified resource, often causing a change in state or side effects on the server.
+            /// </summary>
             POST,
+            /// <summary>
+            /// The PUT method replaces all current representations of the target resource with the request payload.
+            /// </summary>
             PUT,
+            /// <summary>
+            /// The DELETE method deletes the specified resource.
+            /// </summary>
             DELETE
         }
 
+        /// <summary>
+        /// Is a two-part identifier for file formats and format contents transmitted on the Internet.
+        /// </summary>
         public enum ContentTypes
         {
+            /// <summary>
+            /// application/json: JavaScript Object Notation JSON (RFC 4627)
+            /// </summary>
             JSON
         }
 
@@ -350,7 +385,7 @@ namespace PN.Network
                 /// </summary>
                 [JsonIgnore]
                 public List<HeaderAttribute> Headers { get; set; }
-                
+
                 /// <summary>
                 /// If Body is not null, request use that Body to push it on server. If request's type is GET, Body is ignoring.
                 /// </summary>
@@ -391,12 +426,12 @@ namespace PN.Network
                 /// Here you may get exception, if it was thrown during the request.
                 /// </summary>
                 public Exception Exception { get; set; }
-                
+
                 /// <summary>
                 /// It's just custom field, usually server or API return's some error code for each request. You may redefine that field in your some inherit BaseRequestEntity/Model and add [JsonIgnore] attribute to hide that field OR use [JsonProperty("NEW_NAME")] to rename that field to your's server responses.
                 /// </summary>
                 public int ErrorCode { get; set; }
-                
+
                 /// <summary>
                 /// It's just custom field, usually server or API return's some error message for each request. You may redefine that field in your some inherit BaseRequestEntity/Model and add [JsonIgnore] attribute to hide that field OR use [JsonProperty("NEW_NAME")] to rename that field to your's server responses.
                 /// </summary>
@@ -422,6 +457,10 @@ namespace PN.Network
 
         #region Props and fields
 
+
+        /// <summary>
+        /// The response from server
+        /// </summary>
         public static ResponseEntity LastResponse { get; private set; }
 
         private static string _baseUrl;
@@ -433,27 +472,57 @@ namespace PN.Network
         }
 
         protected static List<HeaderAttribute> GlobalHeaders { get; set; } = new List<HeaderAttribute>();
-
+        /// <summary>
+        /// Init library
+        /// </summary>
+        /// <param name="baseUrl">Host name for requests</param>
+        /// <param name="headers">Collection of headers for requests</param>
         public static void Init(string baseUrl, List<HeaderAttribute> headers = null)
         {
             BaseUrl = baseUrl ?? _baseUrl;
             GlobalHeaders = headers ?? GlobalHeaders ?? new List<HeaderAttribute>();
         }
 
+        /// <summary>
+        /// The maximum number of bytes to read.
+        /// </summary>
+        private const int BUFFER_SIZE = 81920;
+        /// <summary>
+        /// Event, which would be invoked after recieving every portion of bytes from server for current request.
+        /// </summary>
+        public static event EventHandler<DownloadProgressChangedEventArgs> DownloadProgressChanged;
+
         #endregion
 
 
-        private const int BUFFER_SIZE = 81920;
 
-        public static event EventHandler<DownloadProgressChangedEventArgs> DownloadProgressChanged;
-
+        /// <summary>
+        /// Provides data for the DownloadProgressChanged event of a HTTPWebResponse.
+        /// </summary>
         public class DownloadProgressChangedEventArgs : EventArgs
         {
+            /// <summary>
+            /// Gets the length of the content returned by the request.
+            /// </summary>
             public long ResponseBodyLength { get; set; }
+
+
+            /// <summary>
+            /// Gets the number of bytes received.
+            /// </summary>
             public long RecievedBytesCount { get; set; }
+
+
+            /// <summary>
+            /// Recieved data
+            /// </summary>
             public byte[] RecievedBytes { get; set; }
+
+
+            /// <summary>
+            /// Gets the total number of bytes in a HTTPWebResponse data download operation.
+            /// </summary>
             public long TotalRecievedBytesCount { get; set; }
         }
     }
 }
-#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
