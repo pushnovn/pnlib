@@ -25,15 +25,13 @@ namespace PN.Network
         /// Docs (RU) avaliable on http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        protected static dynamic Base(RequestEntity requestModel = null) =>
-            CreatePrivateBase(requestModel, GetMethodInfo());
+        protected static dynamic Base(RequestEntity requestModel = null) => CreatePrivateBase(requestModel, GetMethodInfo());
 
 
         /// <summary>
         /// All downloading data will be stored at RAM. If you want change this, set flushBuffer value to true, for clearing memory after downloading part of data. 
         /// </summary>
-        /// <param name="customAction">Is action will be invoked every time when new data will arrived. Use it when you trying to download 2 or more files in a row</param>
-        /// <returns>Method will return object that you specified as generic type</returns>
+        /// <returns>Method will return object that you specified as generic type. If you set <typeparamref name="TResponse"/> as Task type, it would return Task and may be used as async/await.</returns>
         public static TResponse Request<TResponse>(string url, RequestEntity requestEntity = null, params object[] settings)
         {
             var headers = settings.OfType<HeaderAttribute>()?.ToList();
@@ -44,29 +42,24 @@ namespace PN.Network
                 MethodPath = url,
                 BaseReturnType = typeof(TResponse),
                 IsGenericType = typeof(TResponse).IsGenericType,
-                ReturnType = typeof(TResponse).IsGenericType
-                    ? typeof(TResponse).GetGenericArguments()[0]
-                    : typeof(TResponse),
+                ReturnType = typeof(TResponse).IsGenericType ? typeof(TResponse).GetGenericArguments()[0] : typeof(TResponse),
                 RequestType = settings.OfType<RequestTypes>().LastOrDefault(),
                 ContentType = settings.OfType<ContentTypes>().LastOrDefault(),
                 IgnoreGlobalHeaders = settings.OfType<IgnoreGlobalHeadersAttribute>()?.Count() > 0,
                 HeaderAttributes = headers,
             };
 
-            return (TResponse)CreatePrivateBase(requestEntity, methodInfo);
+            return (TResponse) CreatePrivateBase(requestEntity, methodInfo);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static object CreatePrivateBase(RequestEntity requestModel, ReflMethodInfo methodInfo,
-            Action<ProgressChangedEventArgs> customAction = null)
+        private static object CreatePrivateBase(RequestEntity requestModel, ReflMethodInfo methodInfo)
         {
             var method = typeof(HTTP).GetMethod(nameof(BaseAsyncPrivate), BindingFlags.NonPublic | BindingFlags.Static);
             var generic = method?.MakeGenericMethod(methodInfo.ReturnType);
-            var task = generic?.Invoke(null, new object[] { requestModel, customAction });
+            var task = generic?.Invoke(null, new object[] { requestModel, methodInfo });
 
-            return methodInfo.IsGenericType
-                ? task
-                : task.GetType().GetProperty(nameof(Task<dynamic>.Result)).GetValue(task, null);
+            return methodInfo.IsGenericType ? task : task.GetType().GetProperty(nameof(Task<dynamic>.Result)).GetValue(task, null);
         }
 
         private static async Task<T> BaseAsyncPrivate<T>(RequestEntity requestModel, ReflMethodInfo methodInfo)
@@ -180,23 +173,19 @@ namespace PN.Network
 
             var baseResponseModelType = (method as MethodInfo)?.ReturnType;
             var isGenericType = baseResponseModelType.IsGenericType;
-            var responseModelType =
-                isGenericType ? baseResponseModelType.GetGenericArguments()[0] : baseResponseModelType;
+            var responseModelType = isGenericType ? baseResponseModelType.GetGenericArguments()[0] : baseResponseModelType;
 
             var url = method.GetCustomAttributes()?.OfType<UrlAttribute>()?.FirstOrDefault();
             var requestType = method.GetCustomAttributes()?.OfType<RequestTypeAttribute>()?.FirstOrDefault();
             var contentType = method.GetCustomAttributes()?.OfType<ContentTypeAttribute>()?.FirstOrDefault();
-            var ignoreGlobalHeaders =
-                method.GetCustomAttributes()?.OfType<IgnoreGlobalHeadersAttribute>()?.FirstOrDefault();
+            var ignoreGlobalHeaders = method.GetCustomAttributes()?.OfType<IgnoreGlobalHeadersAttribute>()?.FirstOrDefault();
             var headers = method.GetCustomAttributes()?.OfType<HeaderAttribute>()?.ToList();
 
             var temp_uri = string.Empty;
             var typ = method.ReflectedType;
             while (typ != null)
             {
-                var att = typ
-                    .GetCustomAttributes(typeof(UrlAttribute), true)
-                    .FirstOrDefault() as UrlAttribute;
+                var att = typ.GetCustomAttributes(typeof(UrlAttribute), true).FirstOrDefault() as UrlAttribute;
 
                 var checkBaseUrl = typ.ReflectedType == null && string.IsNullOrWhiteSpace(_baseUrl) == false;
                 temp_uri = (checkBaseUrl ? BaseUrl : (att?.Url ?? typ.Name).Trim('/') + "/") + temp_uri;
@@ -231,15 +220,15 @@ namespace PN.Network
                 bytesRead = await responseStream?.ReadAsync(bytes, 0, BUFFER_SIZE);
                 totalRecieved += bytesRead;
 
-                var args = new ProgressChangedEventArgs
+                var args = new DownloadProgressChangedEventArgs
                 {
-                    MaxBytes = responseContentLength,
-                    Recieved = bytesRead,
-                    TotalRecieved = totalRecieved,
-                    RecievedData = bytes
+                    ResponseBodyLength = responseContentLength,
+                    RecievedBytesCount = bytesRead,
+                    TotalRecievedBytesCount = totalRecieved,
+                    RecievedBytes = bytes
                 };
 
-                requestModel.CustomAction?.Invoke(args);
+                requestModel.OnDownloadProgressChangedAction?.Invoke(args);
                 DownloadProgressChanged?.Invoke(null, args);
 
                 if (requestModel.FlushBuffer)
@@ -356,28 +345,77 @@ namespace PN.Network
         {
             public class RequestEntity
             {
-                [JsonIgnore] public List<HeaderAttribute> Headers { get; set; }
-
-                [JsonIgnore] public byte[] Body { get; set; }
-
-                [JsonIgnore] public int? Timeout { get; set; }
                 /// <summary>
-                /// Flush the buffer after receiving, if true, buffer will be flushed every time after invoking DownloadProgressChanged event</param>
+                /// Add custom headers to current request.
                 /// </summary>
-                [JsonIgnore] public bool FlushBuffer { get; set; } = false;
-                [JsonIgnore] public Action<ProgressChangedEventArgs> CustomAction { get; set; }
+                [JsonIgnore]
+                public List<HeaderAttribute> Headers { get; set; }
+                
+                /// <summary>
+                /// If Body is not null, request use that Body to push it on server. If request's type is GET, Body is ignoring.
+                /// </summary>
+                [JsonIgnore]
+                public byte[] Body { get; set; }
+
+
+                /// <summary>
+                /// Via Timeout you may set request's timeout. If it null, it's used default timeout.
+                /// </summary>
+                [JsonIgnore]
+                public int? Timeout { get; set; }
+
+
+                /// <summary>
+                /// Flush the buffer after receiving portion of bytes. If true, buffer will be flushed every time after recieving next portion of bytes from server and invoking DownloadProgressChanged event or OnProgressChangedAction action.
+                /// </summary>
+                [JsonIgnore]
+                public bool FlushBuffer { get; set; } = false;
+
+
+                /// <summary>
+                /// Action, which would be invoked after recieving every portion of bytes from server for current request.
+                /// </summary>
+                [JsonIgnore]
+                public Action<DownloadProgressChangedEventArgs> OnDownloadProgressChangedAction { get; set; }
             }
 
             public class ResponseEntity
             {
+                /// <summary>
+                /// Here you may get HTTP response code, if no exception was thrown during the request.
+                /// </summary>
                 [JsonIgnore] public int HttpCode { get; set; }
 
+
+                /// <summary>
+                /// Here you may get exception, if it was thrown during the request.
+                /// </summary>
                 public Exception Exception { get; set; }
+                
+                /// <summary>
+                /// It's just custom field, usually server or API return's some error code for each request. You may redefine that field in your some inherit BaseRequestEntity/Model and add [JsonIgnore] attribute to hide that field OR use [JsonProperty("NEW_NAME")] to rename that field to your's server responses.
+                /// </summary>
                 public int ErrorCode { get; set; }
+                
+                /// <summary>
+                /// It's just custom field, usually server or API return's some error message for each request. You may redefine that field in your some inherit BaseRequestEntity/Model and add [JsonIgnore] attribute to hide that field OR use [JsonProperty("NEW_NAME")] to rename that field to your's server responses.
+                /// </summary>
                 public string ErrorMessage { get; set; }
 
+
+                /// <summary>
+                /// Response body in a string format.May be usefull, if you need to download HTML page or simple text/string. Also you may set string as a return\generic parameter type for your request method, and response would be converted automatically to string.
+                /// </summary>
                 public string ResponseText { get; set; }
+
+                /// <summary>
+                /// Dynamic object, that represents attempt to convert response as a json to dynamic object. Added because we can.
+                /// </summary>
                 public dynamic ResponseDynamic { get; set; }
+
+                /// <summary>
+                /// Response body in it's original form. May be usefull, if you need to download file or get response body without any processing.
+                /// </summary>
                 public byte[] ResponseBody { get; set; }
             }
         }
@@ -407,14 +445,14 @@ namespace PN.Network
 
         private const int BUFFER_SIZE = 81920;
 
-        public static event EventHandler<ProgressChangedEventArgs> DownloadProgressChanged;
+        public static event EventHandler<DownloadProgressChangedEventArgs> DownloadProgressChanged;
 
-        public class ProgressChangedEventArgs : EventArgs
+        public class DownloadProgressChangedEventArgs : EventArgs
         {
-            public long MaxBytes { get; set; }
-            public long Recieved { get; set; }
-            public long TotalRecieved { get; set; }
-            public byte[] RecievedData { get; set; }
+            public long ResponseBodyLength { get; set; }
+            public long RecievedBytesCount { get; set; }
+            public byte[] RecievedBytes { get; set; }
+            public long TotalRecievedBytesCount { get; set; }
         }
     }
 }

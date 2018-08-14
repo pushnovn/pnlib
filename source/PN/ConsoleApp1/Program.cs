@@ -22,14 +22,14 @@ namespace ConsoleApp1
         static List<byte> list = new List<byte>();
 
 
-        private static void HTTP_DownloadProgressChanged(object sender, ProgressChangedEventArgs e)
+        private static void HTTP_DownloadProgressChanged(object sender, DownloadProgressChangedEventArgs e)
         {
-            val += e.Recieved;
+            val += e.RecievedBytesCount;
 
             count++;
 
             var sd = val / count;
-            Console.Write($"\r{GetFriendlyLength((ulong)e.TotalRecieved)} / {GetFriendlyLength((ulong)e.MaxBytes)} bytes read {GetFriendlyLength((ulong)sd)}");
+            Console.Write($"\r{GetFriendlyLength((ulong)e.TotalRecievedBytesCount)} / {GetFriendlyLength((ulong)e.ResponseBodyLength)} bytes read {GetFriendlyLength((ulong)sd)}");
 
         }
         private static string GetFriendlyLength(ulong bandwidth)
