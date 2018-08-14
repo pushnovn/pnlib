@@ -60,7 +60,7 @@ namespace PN.Network
         {
             var method = typeof(HTTP).GetMethod(nameof(BaseAsyncPrivate), BindingFlags.NonPublic | BindingFlags.Static);
             var generic = method?.MakeGenericMethod(methodInfo.ReturnType);
-            var task = generic?.Invoke(null, new object[] { requestModel, methodInfo });
+            var task = generic?.Invoke(null, new object[] {requestModel, methodInfo});
 
             return methodInfo.IsGenericType ? task : task.GetType().GetProperty(nameof(Task<dynamic>.Result)).GetValue(task, null);
         }
@@ -72,8 +72,10 @@ namespace PN.Network
                 #region URL and request type
 
                 requestModel = requestModel ?? new RequestEntity();
+
                 var requestUri = new Uri(Utils.Utils.Internal.ProcessComplexString(methodInfo.MethodFullUrl, requestModel));
-                HttpWebRequest request = (HttpWebRequest)WebRequest.Create(requestUri);
+                HttpWebRequest request = (HttpWebRequest) WebRequest.Create(requestUri);
+
                 request.Method = methodInfo.RequestType.ToString();
                 request.ContentType = ContentTypeToString(methodInfo.ContentType);
                 request.UserAgent = methodInfo.UserAgentString;
@@ -123,13 +125,13 @@ namespace PN.Network
 
                 #region Execute request
 
-                using (var response = (HttpWebResponse)await request.GetResponseAsync())
+                using (var response = (HttpWebResponse) await request.GetResponseAsync())
                 {
                     using (var stream = response.GetResponseStream())
                     {
                         var responseBody = await GetResponseBodyWithProgressAsync(requestModel, response.ContentLength, stream);
                         var responseJson = Encoding.UTF8.GetString(responseBody);
-                        LastResponse = new ResponseEntity() { ResponseBody = responseBody, ResponseText = responseJson };
+                        LastResponse = new ResponseEntity() {ResponseBody = responseBody, ResponseText = responseJson};
 
                         object instance;
                         try
@@ -153,9 +155,9 @@ namespace PN.Network
                         Utils.Utils.Internal.TrySetValue(ref instance, responseBody, nameof(ResponseEntity.ResponseBody));
                         Utils.Utils.Internal.TrySetValue(ref instance, responseJson, nameof(ResponseEntity.ResponseText));
                         Utils.Utils.Internal.TrySetValue(ref instance, responseJson, nameof(ResponseEntity.ResponseDynamic), true);
-                        Utils.Utils.Internal.TrySetValue(ref instance, (int)response.StatusCode, nameof(ResponseEntity.HttpCode));
+                        Utils.Utils.Internal.TrySetValue(ref instance, response.StatusCode, nameof(ResponseEntity.HttpCode));
 
-                        return (T)instance;
+                        return (T) instance;
                     }
                 }
 
@@ -163,7 +165,7 @@ namespace PN.Network
             }
             catch (Exception ex)
             {
-                LastResponse = new ResponseEntity() { Exception = ex };
+                LastResponse = new ResponseEntity() {Exception = ex};
                 var instance = Utils.Utils.Internal.CreateDefaultObject(methodInfo.ReturnType);
                 return (T) Utils.Utils.Internal.TrySetValue(ref instance, ex, nameof(ResponseEntity.Exception));
             }
@@ -251,7 +253,6 @@ namespace PN.Network
                     bytes = new byte[BUFFER_SIZE];
                 else
                     list.AddRange(bytes.Take(bytesRead));
-
             } while (bytesRead > 0);
 
             return list.ToArray();
@@ -271,10 +272,10 @@ namespace PN.Network
 
         private class ReflMethodInfo
         {
-            internal string MethodPath { get; set; }
-            internal Type ReturnType { get; set; }
-            internal Type BaseReturnType { get; set; }
-            internal bool IsGenericType { get; set; }
+            internal string MethodPath       { get; set; }
+            internal Type   ReturnType       { get; set; }
+            internal Type   BaseReturnType   { get; set; }
+            internal bool   IsGenericType    { get; set; }
 
             internal string MethodPartialUrl { get; set; }
 
@@ -283,16 +284,16 @@ namespace PN.Network
                                               !string.IsNullOrWhiteSpace(MethodPartialUrl)
                                                  ? "/"
                                                  : "") + (MethodPartialUrl?.Trim('/') ?? "");
+            
+            internal RequestTypes          RequestType         { get; set; }
+            internal ContentTypes          ContentType         { get; set; }
+            internal List<HeaderAttribute> HeaderAttributes    { get; set; }
+            internal bool                  IgnoreGlobalHeaders { get; set; }
+            internal string                UserAgentString     { get; set; }
 
-            internal RequestTypes RequestType { get; set; }
-            internal ContentTypes ContentType { get; set; }
-            internal List<HeaderAttribute> HeaderAttributes { get; set; }
-            internal bool IgnoreGlobalHeaders { get; set; }
-            internal string UserAgentString { get; set; }
         }
 
         #region Attributes
-
 
         /// <summary>
         /// Host adress or just sub-url
@@ -347,6 +348,7 @@ namespace PN.Network
                 Value = value;
             }
         }
+
         /// <summary>
         /// GlobalHeadersAttribute will be ignored for action where you will define IgnoreHeadersAttribute
         /// </summary>
@@ -380,14 +382,17 @@ namespace PN.Network
             /// The GET method requests a representation of the specified resource. Requests using GET should only retrieve data.
             /// </summary>
             GET,
+
             /// <summary>
             /// The POST method is used to submit an entity to the specified resource, often causing a change in state or side effects on the server.
             /// </summary>
             POST,
+
             /// <summary>
             /// The PUT method replaces all current representations of the target resource with the request payload.
             /// </summary>
             PUT,
+
             /// <summary>
             /// The DELETE method deletes the specified resource.
             /// </summary>
@@ -448,8 +453,8 @@ namespace PN.Network
                 /// <summary>
                 /// Here you may get HTTP response code, if no exception was thrown during the request.
                 /// </summary>
-                [JsonIgnore] public int HttpCode { get; set; }
-
+                [JsonIgnore]
+                public HttpStatusCode HttpCode { get; set; }
 
                 /// <summary>
                 /// Here you may get exception, if it was thrown during the request.
@@ -465,7 +470,6 @@ namespace PN.Network
                 /// It's just custom field, usually server or API return's some error message for each request. You may redefine that field in your some inherit BaseRequestEntity/Model and add [JsonIgnore] attribute to hide that field OR use [JsonProperty("NEW_NAME")] to rename that field to your's server responses.
                 /// </summary>
                 public string ErrorMessage { get; set; }
-
 
                 /// <summary>
                 /// Response body in a string format.May be usefull, if you need to download HTML page or simple text/string. Also you may set string as a return\generic parameter type for your request method, and response would be converted automatically to string.
@@ -486,7 +490,6 @@ namespace PN.Network
 
         #region Props and fields
 
-
         /// <summary>
         /// The response from server
         /// </summary>
@@ -501,6 +504,7 @@ namespace PN.Network
         }
 
         protected static List<HeaderAttribute> GlobalHeaders { get; set; } = new List<HeaderAttribute>();
+
         /// <summary>
         /// Init library
         /// </summary>
@@ -516,13 +520,13 @@ namespace PN.Network
         /// The maximum number of bytes to read.
         /// </summary>
         private const int BUFFER_SIZE = 81920;
+
         /// <summary>
         /// Event, which would be invoked after recieving every portion of bytes from server for current request.
         /// </summary>
         public static event EventHandler<DownloadProgressChangedEventArgs> DownloadProgressChanged;
 
         #endregion
-
 
 
         /// <summary>
