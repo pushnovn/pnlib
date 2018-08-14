@@ -129,40 +129,9 @@ namespace PN.Network
 
                 using (var response = (HttpWebResponse)await request.GetResponseAsync())
                 {
-                    var totalNeed = response.ContentLength;
-
-                    var list = new List<byte>();
-                    long totalRecieved = 0;
-                    var bytes = new byte[BUFFER_SIZE];
-
                     using (var stream = response.GetResponseStream())
                     {
-                        var bytesRead = 0;
-
-                        do
-                        {
-                            bytesRead = await stream?.ReadAsync(bytes, 0, BUFFER_SIZE);
-                            totalRecieved += bytesRead;
-
-                            var args = new ProgressChangedEventArgs
-                            {
-                                MaxBytes = totalNeed,
-                                Recieved = bytesRead,
-                                TotalRecieved = totalRecieved,
-                                RecievedData = bytes
-                            };
-
-                            requestModel.CustomAction?.Invoke(args);
-                            DownloadProgressChanged?.Invoke(null, args);
-
-                            if (requestModel.FlushBuffer)
-                                bytes = new byte[BUFFER_SIZE];
-                            else
-                                list.AddRange(bytes.Take(bytesRead));
-                        } while (bytesRead > 0);
-
-
-                        var responseBody = list.ToArray();
+                        var responseBody = await GetResponseBodyWithProgressAsync(requestModel, response.ContentLength, stream);
                         var responseJson = Encoding.UTF8.GetString(responseBody);
                         LastResponse = new ResponseEntity() { ResponseBody = responseBody, ResponseText = responseJson };
 
@@ -185,14 +154,10 @@ namespace PN.Network
                             LastResponse.Exception = exc;
                         }
 
-                        Utils.Utils.Internal.TrySetValue(ref instance, responseBody,
-                            nameof(ResponseEntity.ResponseBody));
-                        Utils.Utils.Internal.TrySetValue(ref instance, responseJson,
-                            nameof(ResponseEntity.ResponseText));
-                        Utils.Utils.Internal.TrySetValue(ref instance, responseJson,
-                            nameof(ResponseEntity.ResponseDynamic), true);
-                        Utils.Utils.Internal.TrySetValue(ref instance, (int)response.StatusCode,
-                            nameof(ResponseEntity.HttpCode));
+                        Utils.Utils.Internal.TrySetValue(ref instance, responseBody, nameof(ResponseEntity.ResponseBody));
+                        Utils.Utils.Internal.TrySetValue(ref instance, responseJson, nameof(ResponseEntity.ResponseText));
+                        Utils.Utils.Internal.TrySetValue(ref instance, responseJson, nameof(ResponseEntity.ResponseDynamic), true);
+                        Utils.Utils.Internal.TrySetValue(ref instance, (int)response.StatusCode, nameof(ResponseEntity.HttpCode));
 
                         return (T)instance;
                     }
@@ -251,6 +216,40 @@ namespace PN.Network
                 IgnoreGlobalHeaders = ignoreGlobalHeaders != null,
                 HeaderAttributes = headers,
             };
+        }
+
+        private static async Task<byte[]> GetResponseBodyWithProgressAsync(RequestEntity requestModel, long responseContentLength, Stream responseStream)
+        {
+            var list = new List<byte>();
+            long totalRecieved = 0;
+            var bytes = new byte[BUFFER_SIZE];
+
+            var bytesRead = 0;
+
+            do
+            {
+                bytesRead = await responseStream?.ReadAsync(bytes, 0, BUFFER_SIZE);
+                totalRecieved += bytesRead;
+
+                var args = new ProgressChangedEventArgs
+                {
+                    MaxBytes = responseContentLength,
+                    Recieved = bytesRead,
+                    TotalRecieved = totalRecieved,
+                    RecievedData = bytes
+                };
+
+                requestModel.CustomAction?.Invoke(args);
+                DownloadProgressChanged?.Invoke(null, args);
+
+                if (requestModel.FlushBuffer)
+                    bytes = new byte[BUFFER_SIZE];
+                else
+                    list.AddRange(bytes.Take(bytesRead));
+
+            } while (bytesRead > 0);
+
+            return list.ToArray();
         }
 
         private static string ContentTypeToString(ContentTypes contentType)
