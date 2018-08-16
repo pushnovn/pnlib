@@ -27,6 +27,12 @@ namespace SampleWebApiAspNetCore.v1.Controllers
             _urlHelper = urlHelper;
         }
 
+
+        /// <summary>
+        /// Not big but big XML  for getFood Action
+        /// </summary>
+        /// <param name="queryParameters"></param>
+        /// <returns></returns>
         [HttpGet(Name = nameof(GetAllFoods))]
         public ActionResult GetAllFoods([FromQuery] QueryParameters queryParameters)
         {
@@ -72,7 +78,11 @@ namespace SampleWebApiAspNetCore.v1.Controllers
 
 
 
-
+        /// <summary>
+        /// Big bad AddFood method, Yeaaaaahhhh!!!!!
+        /// </summary>
+        /// <param name="foodCreateDto"></param>
+        /// <returns></returns>
         [HttpPost(Name = nameof(AddFood))]
         public ActionResult<FoodItemDto> AddFood([FromBody] FoodCreateDto foodCreateDto)
         {

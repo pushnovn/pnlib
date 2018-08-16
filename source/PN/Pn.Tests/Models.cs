@@ -44,16 +44,17 @@ namespace Pn.Tests
     }
 
 
-    public class FoodCreateRequest : RequestEntity
+    public class FoodRequest : RequestEntity
     {
         public string name { get; set; }
+        public long id { get; set; }
 
         public string type { get; set; }
         public int calories { get; set; }
         public DateTime created { get; set; }
     }
 
-    public class FoodCreateResponse : RequestEntity
+    public class FoodResponse : ResponseEntity
     {
         public long id { get; set; }
 

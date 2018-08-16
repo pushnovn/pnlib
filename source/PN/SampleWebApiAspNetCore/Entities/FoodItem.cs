@@ -2,6 +2,9 @@
 
 namespace SampleWebApiAspNetCore.Entities
 {
+    /// <summary>
+    /// This Is Food Item from me
+    /// </summary>
     public class FoodItem
     {
         public int Id { get; set; }
