@@ -3,7 +3,7 @@ using PN.Network;
 
 namespace Pn.Tests
 {
-    [Url("https://pushnovn.com:5001/api/")]
+    [Url("https://pushnovn.com:4001/api/")]
     public class api : HTTP
     {
         public class v1

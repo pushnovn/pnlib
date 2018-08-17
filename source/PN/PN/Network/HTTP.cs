@@ -30,6 +30,7 @@ namespace PN.Network
         protected static dynamic Base(RequestEntity requestModel = null) => CreatePrivateBase(requestModel, GetMethodInfo());
 
 
+        
         /// <summary>
         /// All downloading data will be stored at RAM. If you want change this, set flushBuffer value to true, for clearing memory after downloading part of data. 
         /// </summary>

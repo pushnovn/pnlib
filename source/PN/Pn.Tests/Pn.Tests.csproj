@@ -49,9 +49,12 @@
     <Reference Include="System.Core" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AesTest.cs" />
     <Compile Include="api.cs" />
     <Compile Include="Models.cs" />
-    <Compile Include="UnitTest1.cs" />
+    <Compile Include="Sss3.cs" />
+    <Compile Include="SSSTests.cs" />
+    <Compile Include="HttpTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
