@@ -206,7 +206,7 @@ namespace PN.Utils
             internal static string ProcessComplexString(string strToProcess, object model)
             {
                 if (string.IsNullOrWhiteSpace(strToProcess))
-                    return string.Empty;
+                    return strToProcess;
 
                 MatchCollection matches = Regex.Matches(strToProcess, @"\{[\w]+\}");
 
