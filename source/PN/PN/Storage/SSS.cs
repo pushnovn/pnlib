@@ -25,10 +25,13 @@ namespace PN.Storage
 
         #endregion
 
+        //[MethodImpl(MethodImplOptions.NoInlining)]
+        //private static TResponse BasePrivate<TResponse>(object value = null, MethodData methodInfo = null) => (TResponse)BasePrivate(value, methodInfo ?? GetMethodInfo());
+
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static dynamic BasePrivate(object value = null)
+        private static object BasePrivate(object value = null, MethodData methodInfo = null)
         {
-            var methodInfo = GetMethodInfo();
+            methodInfo = methodInfo ?? GetMethodInfo();
             
             var method = GetInternalMethodByName(methodInfo.IsGet, methodInfo.ReflectedType);
 
@@ -37,7 +40,7 @@ namespace PN.Storage
                    method.Method.Invoke(method.MethodInstance, new object[] { methodInfo.ReflectedType.FullName + "_+_" + methodInfo.Name, ObjectToString(value, methodInfo.CryptKey) });
         }
         
-        private static (string Name, Type Type, Type ReflectedType, bool IsGet, string CryptKey) GetMethodInfo()
+        private static MethodData GetMethodInfo()
         {
             var caller = new StackTrace().GetFrame(3).GetMethod() as MethodInfo;
             
@@ -54,7 +57,14 @@ namespace PN.Storage
                 $"{caller.ReflectedType.FullName}_+_{caller.Name.Remove(0, 4)}" :
                 CryptKeySettings.FirstOrDefault(i => i.InheritType == caller.ReflectedType).CryptKeyHash;
             
-            return (caller.Name.Remove(0, 4), caller.ReturnType, caller.ReflectedType, caller.ReturnType != typeof(void), real_key);
+            return new MethodData()
+            {
+                Name = caller.Name.Remove(0, 4),
+                Type = caller.ReturnType,
+                ReflectedType = caller.ReflectedType,
+                IsGet = caller.ReturnType != typeof(void),
+                CryptKey = real_key
+            };
         }
 
         private static T GetValueOfTypeByName<T>(String name, Type reflectedType)
@@ -123,36 +133,26 @@ namespace PN.Storage
 
             return (methodInfo, methodInstance);
         }
-
-        #region Attributes
-
-        [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
-        protected class NeedAuthAttribute : Attribute { }
-
-        [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
-        protected class IsResistantToSoftRemovalAttribute : Attribute { }
-
-        #endregion
-
-        public static bool Auth<T>(string password)
+        
+        public static bool Auth<TInheritSSS>(string password)
         {
             if (string.IsNullOrEmpty(password))
                 return false;
 
             // Сначала проверяем, существует ли наш виртуальный сейф такого типа Т
             //// Вызываем метод Get с ключом = Hash(typeof(T).FullName + "AttempSetting"), пытаясь получить AttempSetting
-            var getMethod = GetInternalMethodByName(true, typeof(T));
-            var setMethod = GetInternalMethodByName(false, typeof(T));
+            var getMethod = GetInternalMethodByName(true, typeof(TInheritSSS));
+            var setMethod = GetInternalMethodByName(false, typeof(TInheritSSS));
 
-            var pathToAttempSetting = AES.SHA256Hash(typeof(T).FullName + "AttempSetting");
+            var pathToAttempSetting = AES.SHA256Hash(typeof(TInheritSSS).FullName + "AttempSetting");
             var attempSettingString = (string) getMethod.Method.Invoke(getMethod.MethodInstance, new object[] { pathToAttempSetting });
-            var attempSetting = new AttempSetting() { InheritType = typeof(T) };
+            var attempSetting = new AttempSetting() { InheritType = typeof(TInheritSSS) };
        
             // Если AttempSetting нет, то:
             if (attempSettingString == null)
             {
                 //// Делаем очистку всей базы (ClearAll) с типом Т
-                ClearAll<T>();
+                ClearAll<TInheritSSS>();
 
                 //// Cоздаём её через метод Set
                 attempSetting.LastUpdateDate = AES.Encrypt(DateTime.Now.ToString(), AES.SHA256Hash(password));
@@ -160,7 +160,7 @@ namespace PN.Storage
                     pathToAttempSetting, ObjectToString(attempSetting, pathToAttempSetting) });
 
                 //// Потом создаём новый экземпляр типа Settings с нужным нам паролем и типом T и запихиваем в List
-                CryptKeySettings.Add(new CryptKeySetting() { InheritType = typeof(T), CryptKey = password });
+                CryptKeySettings.Add(new CryptKeySetting() { InheritType = typeof(TInheritSSS), CryptKey = password });
 
                 //// Возвращаем true
                 return true;
@@ -177,7 +177,7 @@ namespace PN.Storage
                 if (CheckPassword(password, attempSetting))
                 {
                     ////// Создаём новый экземпляр типа CryptKeySetting с нужным нам паролем и типом T и запихиваем в List
-                    CryptKeySettings.Add(new CryptKeySetting() { InheritType = typeof(T), CryptKey = password });
+                    CryptKeySettings.Add(new CryptKeySetting() { InheritType = typeof(TInheritSSS), CryptKey = password });
 
                     ////// Обнуляем CurrentCount в AttempSetting
                     attempSetting.CurrentCount = 0;
@@ -194,7 +194,7 @@ namespace PN.Storage
                     ////// Инкрементим CurrentCount в AttempSetting (если CurrentCount > MaxCount => ClearAll)
                     if (attempSetting.MaxCount > 0 && ++attempSetting.CurrentCount > attempSetting.MaxCount)
                     {
-                        ClearAll<T>();
+                        ClearAll<TInheritSSS>();
                     }
 
                     ////// Возвращаем false
@@ -217,6 +217,16 @@ namespace PN.Storage
         }
 #endif
 
+        #region Attributes
+
+        [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
+        public class NeedAuthAttribute : Attribute { }
+
+        [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
+        public class IsResistantToSoftRemovalAttribute : Attribute { }
+
+        #endregion
+        
         private static bool CheckPassword(string password, AttempSetting attempSetting)
         {
             try
@@ -297,30 +307,60 @@ namespace PN.Storage
             // ================================================================================
         }
 
-        public static void ClearAll<T>(bool SoftClearing = false)
+        public static void ClearAll<TInheritSSS>(bool SoftClearing = false)
         {
-            var methodInfo = GetInternalMethodByName(nameof(Set), typeof(T));
+            var methodInfo = GetInternalMethodByName(nameof(Set), typeof(TInheritSSS));
             
-            foreach (var prop in typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Static))
+            foreach (var prop in typeof(TInheritSSS).GetProperties(BindingFlags.Public | BindingFlags.Static))
             {
                 if (SoftClearing && prop?.GetCustomAttributes()?.OfType<IsResistantToSoftRemovalAttribute>()?.FirstOrDefault() != null)
                 {
                     continue;
                 }
 
-                methodInfo.Method.Invoke(methodInfo.MethodInstance, new object[] { typeof(T).FullName + "_+_" + prop.Name, null });
+                methodInfo.Method.Invoke(methodInfo.MethodInstance, new object[] { typeof(TInheritSSS).FullName + "_+_" + prop.Name, null });
             }
             
-            var pathToAttempSetting = AES.SHA256Hash(typeof(T).FullName + "AttempSetting");
+            var pathToAttempSetting = AES.SHA256Hash(typeof(TInheritSSS).FullName + "AttempSetting");
             methodInfo.Method.Invoke(methodInfo.MethodInstance, new object[] { pathToAttempSetting, null });
 
-            CryptKeySettings.RemoveAll(s => s.InheritType == typeof(T));
+            CryptKeySettings.RemoveAll(s => s.InheritType == typeof(TInheritSSS));
         }
 
         private static List<CryptKeySetting> CryptKeySettings = new List<CryptKeySetting>();
+
+        public static Indexer<TValue, TInherit> Index<TValue, TInherit>() => new Indexer<TValue, TInherit>();
+        
+        public class Indexer<TValue, TInherit>
+        {
+            public TValue this [object key]
+            {
+                get => (TValue)BasePrivate(null, GetMethodData(JsonConvert.SerializeObject(key), true));
+                set => BasePrivate(value, GetMethodData(JsonConvert.SerializeObject(key), false));
+            }
+
+            private MethodData GetMethodData(string name, bool IsGet = false)
+            {
+                return new MethodData()
+                {
+                    Name = name,
+                    Type = typeof(TValue),//(IndexerDict[key] = value.GetType()),
+                    ReflectedType = typeof(TInherit),
+                    IsGet = IsGet,
+                    CryptKey = name,
+                };
+            }
+        }
     }
-
-
+    
+    internal class MethodData
+    {
+        public string Name { get; set; }
+        public Type Type { get; set; }
+        public Type ReflectedType { get; set; }
+        public bool IsGet { get; set; }
+        public string CryptKey { get; set; }
+    }
 
     internal class AttempSetting
     {
@@ -473,7 +513,7 @@ namespace PN.Storage
     //    //    // throw new NotImplementedException("Need override this method according to project/platform specific implementation.");
     //    //}
 
-            
+
 
 
     //    public static string Example { get => Get(); set => Set(value); }

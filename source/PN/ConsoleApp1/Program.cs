@@ -47,8 +47,23 @@ namespace ConsoleApp1
         }
         static void Main(string[] args)
         {
+            var d = SSS2.dict;
+
+            SSS2.Example = "some example str";
+
+            var ses = SSS2.Example;
+
+            SSS2.Index<string, SSS2>()[27] = "some_str2";
+
+            d = SSS2.dict;
+
+            var some_str = SSS2.Index<string, SSS2>()[27];
+
+            d = SSS2.dict;
+
             var testProp = AS.API___.TestProp;
 
+   
 
 
             var typ = AS.API___.Files(new FilesRequestModel()).Result;
