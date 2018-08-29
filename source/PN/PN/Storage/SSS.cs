@@ -24,10 +24,7 @@ namespace PN.Storage
         protected static void Base(object value) => BasePrivate(value);
 
         #endregion
-
-        //[MethodImpl(MethodImplOptions.NoInlining)]
-        //private static TResponse BasePrivate<TResponse>(object value = null, MethodData methodInfo = null) => (TResponse)BasePrivate(value, methodInfo ?? GetMethodInfo());
-
+        
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static object BasePrivate(object value = null, MethodData methodInfo = null)
         {
@@ -36,8 +33,8 @@ namespace PN.Storage
             var method = GetInternalMethodByName(methodInfo.IsGet, methodInfo.ReflectedType);
 
             return methodInfo.IsGet ?
-                   StringToObject((string)method.Method.Invoke(method.MethodInstance, new object[] { methodInfo.ReflectedType.FullName + "_+_" + methodInfo.Name }), methodInfo.CryptKey, methodInfo.Type) :
-                   method.Method.Invoke(method.MethodInstance, new object[] { methodInfo.ReflectedType.FullName + "_+_" + methodInfo.Name, ObjectToString(value, methodInfo.CryptKey) });
+                   StringToObject((string)method.Method.Invoke(method.MethodInstance, new object[] { methodInfo.ReflectedType.FullName + Splitter + methodInfo.Name }), methodInfo.CryptKey, methodInfo.Type) :
+                   method.Method.Invoke(method.MethodInstance, new object[] { methodInfo.ReflectedType.FullName + Splitter + methodInfo.Name, ObjectToString(value, methodInfo.CryptKey) });
         }
         
         private static MethodData GetMethodInfo()
@@ -54,7 +51,7 @@ namespace PN.Storage
                 throw new Exception($"Need first Auth for {caller.ReflectedType} class.");
 
             var real_key = useDefaultCryptKey ?
-                $"{caller.ReflectedType.FullName}_+_{caller.Name.Remove(0, 4)}" :
+                $"{caller.ReflectedType.FullName}{Splitter}{caller.Name.Remove(0, 4)}" :
                 CryptKeySettings.FirstOrDefault(i => i.InheritType == caller.ReflectedType).CryptKeyHash;
             
             return new MethodData()
@@ -288,7 +285,7 @@ namespace PN.Storage
             {
                 var propNewValue = prop.GetValue(null);
                 methodInfo.Method.Invoke(methodInfo.MethodInstance, new object[] {
-                    typeof(T).FullName + "_+_" + prop.Name, ObjectToString(prop.GetValue(null), AES.SHA256Hash(newPassword)) });
+                    typeof(T).FullName + Splitter + prop.Name, ObjectToString(prop.GetValue(null), AES.SHA256Hash(newPassword)) });
             }
 
             CryptKeySettings[CryptKeySettings.IndexOf(CryptKeySettings.FirstOrDefault(s => s.InheritType == typeof(T)))].CryptKey = newPassword;
@@ -318,7 +315,7 @@ namespace PN.Storage
                     continue;
                 }
 
-                methodInfo.Method.Invoke(methodInfo.MethodInstance, new object[] { typeof(TInheritSSS).FullName + "_+_" + prop.Name, null });
+                methodInfo.Method.Invoke(methodInfo.MethodInstance, new object[] { typeof(TInheritSSS).FullName + Splitter + prop.Name, null });
             }
             
             var pathToAttempSetting = AES.SHA256Hash(typeof(TInheritSSS).FullName + "AttempSetting");
@@ -326,6 +323,8 @@ namespace PN.Storage
 
             CryptKeySettings.RemoveAll(s => s.InheritType == typeof(TInheritSSS));
         }
+
+        private const string Splitter = "_+_";
 
         private static List<CryptKeySetting> CryptKeySettings = new List<CryptKeySetting>();
 
