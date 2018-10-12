@@ -478,13 +478,13 @@ namespace PN.Storage
                                 groupString += fieldName + " = CASE id ";
                                 foreach (var obj in data)
                                 {
-                                    var value = resultType.GetProperty(fieldName).GetValue(obj, null);
+                                    var value = resultType.GetProperty(fieldName).GetValue(obj, null) ?? "null";
                                     value = value is string ? (value as string).Replace("\'", "\'\'") : value;
 
                                     groupString += string.Format("WHEN {0} THEN '{1}' ",
-                                                                 resultType.GetProperty("id", bindingFlags | BindingFlags.Instance).GetValue(obj, null),
+                                                                 resultType.GetProperty("id", bindingFlags | BindingFlags.IgnoreCase).GetValue(obj, null) ?? "null",
                                                                  value);
-                                    idsEnum += resultType.GetProperty("id", bindingFlags | BindingFlags.Instance).GetValue(obj, null) + ",";
+                                    idsEnum += resultType.GetProperty("id", bindingFlags | BindingFlags.IgnoreCase).GetValue(obj, null) + ",";
                                 }
 
                                 groupString += "END,";
@@ -507,7 +507,7 @@ namespace PN.Storage
                             var idsEnumForDeleteMethod = string.Empty;
                             foreach (var obj in data)
                             {
-                                idsEnumForDeleteMethod += resultType.GetProperty("id", bindingFlags | BindingFlags.Instance).GetValue(obj, null) + ",";
+                                idsEnumForDeleteMethod += resultType.GetProperty("id", bindingFlags | BindingFlags.IgnoreCase).GetValue(obj, null) + ",";
                             }
 
                             idsEnumForDeleteMethod = idsEnumForDeleteMethod.TrimEnd(',');
@@ -579,11 +579,6 @@ namespace PN.Storage
             
             static SQLiteConnection GetConnection()
             {
-                if (Utils.Utils.Internal.CurrentPlatformIsPC && File.Exists("System.Data.SQLite.dll") == false)
-                {
-                    Utils.Utils.Internal.WriteResourceToFile("PN.SQLiteDlls.System.Data.SQLite.dll", "System.Data.SQLite.dll");
-                }
-
                 if (Utils.Utils.Internal.CurrentPlatformIsWindows)
                 {
                     if (Directory.Exists("x64") == false)
@@ -595,7 +590,12 @@ namespace PN.Storage
                     {
                         Directory.CreateDirectory("x86");
                     }
-                    
+
+                    //if (File.Exists("System.Data.SQLite.dll") == false)
+                    //{
+                    //    Utils.Utils.Internal.WriteResourceToFile("PN.SQLiteDlls.System.Data.SQLite.dll", "System.Data.SQLite.dll");
+                    //}
+
                     if (File.Exists("x64/SQLite.Interop.dll") == false)
                     {
                         Utils.Utils.Internal.WriteResourceToFile("PN.SQLiteDlls.x64.SQLite.Interop.dll", "x64/SQLite.Interop.dll");

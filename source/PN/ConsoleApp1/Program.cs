@@ -17,11 +17,13 @@ namespace ConsoleApp1
     {
         static void Main(string[] args)
         {
-          //  SQLite.PathToDB = "sqlite.db";
+            SQLite.PathToDB = "sqlite.db";
 
             var ttt = SQLite.Get<New>();
 
+            ttt[0].Text = null;
 
+            SQLite.Update(ttt[0]);
 
 
 

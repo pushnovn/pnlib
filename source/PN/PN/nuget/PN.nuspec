@@ -2,29 +2,23 @@
 <package >
   <metadata>
     <id>Pushnovn.PN</id>
-    <version>0.1.3.4-pre-alpha</version>
+    <version>0.1.4.2-pre-alpha</version>
     <title>PN lib (Pre-Alpha)</title>
     <authors>Pushnovn</authors>
     <owners>Pushnovn</owners>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>Internal PN lib</description>
     <releaseNotes>
-HTTP:
-- Added support of properties.
-- Fixed error with inherit root HTTP class.
-- Added lots of XML comments.
-- Fixed some issues.
-Utils:
-- Added support for processing complex url and getting parameters from request entity of different types.
+Removed auto-creating DLLs on Mac OS X.
     </releaseNotes>
     <projectUrl>http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http</projectUrl>
     <copyright>Copyright 2018</copyright>
     <tags></tags>
-<!--     <dependencies>
+    <dependencies>
       <group targetFramework="uap">
-        <dependency id="Newtonsoft.Json" version="11.0.2" />
+        <dependency id="System.Data.SQLite" version="1.0.109.2" />
       </group>
-    </dependencies> -->
+    </dependencies>
   </metadata>
   <files>
     <file src="..\bin\Release\netstandard2.0\MergedDll\PN.dll" target="lib\netstandard2.0\PN.dll" />
