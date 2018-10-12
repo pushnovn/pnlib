@@ -34,8 +34,23 @@
   </Target>
 
   <ItemGroup>
+    <None Remove="SQLiteDlls\System.Data.SQLite.dll" />
+    <None Remove="SQLiteDlls\x64\SQLite.Interop.dll" />
+    <None Remove="SQLiteDlls\x86\SQLite.Interop.dll" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="SQLiteDlls\System.Data.SQLite.dll" />
+    <EmbeddedResource Include="SQLiteDlls\x64\SQLite.Interop.dll" />
+    <EmbeddedResource Include="SQLiteDlls\x86\SQLite.Interop.dll" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="InternalNewtonsoft.Json">
       <HintPath>Dlls\InternalNewtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Data.SQLite">
+      <HintPath>Dlls\System.Data.SQLite.dll</HintPath>
     </Reference>
   </ItemGroup>
 

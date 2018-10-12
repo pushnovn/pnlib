@@ -13,40 +13,20 @@ using static PN.Network.HTTP.Entities;
 
 namespace ConsoleApp1
 {
-
     class Program
     {
-        static int count = 0;
-        static long val = 0;
-
-        static List<byte> list = new List<byte>();
-
-        private static void HTTP_DownloadProgressChanged(DownloadProgressChangedEventArgs e) => HTTP_DownloadProgressChanged(null, e);
-        private static void HTTP_DownloadProgressChanged(object sender, DownloadProgressChangedEventArgs e)
-        {
-            val += e.RecievedBytesCount;
-            Console.Write($"\r{GetFriendlyLength((ulong)e.TotalRecievedBytesCount)} / {GetFriendlyLength((ulong)e.ResponseBodyLength)} bytes read {GetFriendlyLength((ulong)(val / ++count))}");
-        }
-
-        private static string GetFriendlyLength(ulong bandwidth)
-        {
-            var ordinals = new[] { string.Empty, "K", "M", "G", "T", "P", "E" };
-
-
-            decimal rate = (decimal)bandwidth;
-
-            var ordinal = 0;
-
-            while (rate > 1024)
-            {
-                rate /= 1024;
-                ordinal++;
-            }
-
-            return (string.Format("{0} {1}B", Math.Round(rate, 2, MidpointRounding.AwayFromZero), ordinals[ordinal]));
-        }
         static void Main(string[] args)
         {
+          //  SQLite.PathToDB = "sqlite.db";
+
+            var ttt = SQLite.Get<New>();
+
+
+
+
+
+
+
             var d = SSS2.dict;
 
             SSS2.Example = "some example str";
@@ -172,6 +152,42 @@ namespace ConsoleApp1
 
         }
 
+        public class New
+        {
+            public int Id { get; set; }
+            public string Title { get; set; }
+            public string Text { get; set; }
+        }
+
+        static int count = 0;
+        static long val = 0;
+
+        static List<byte> list = new List<byte>();
+
+        private static void HTTP_DownloadProgressChanged(DownloadProgressChangedEventArgs e) => HTTP_DownloadProgressChanged(null, e);
+        private static void HTTP_DownloadProgressChanged(object sender, DownloadProgressChangedEventArgs e)
+        {
+            val += e.RecievedBytesCount;
+            Console.Write($"\r{GetFriendlyLength((ulong)e.TotalRecievedBytesCount)} / {GetFriendlyLength((ulong)e.ResponseBodyLength)} bytes read {GetFriendlyLength((ulong)(val / ++count))}");
+        }
+
+        private static string GetFriendlyLength(ulong bandwidth)
+        {
+            var ordinals = new[] { string.Empty, "K", "M", "G", "T", "P", "E" };
+
+
+            decimal rate = (decimal)bandwidth;
+
+            var ordinal = 0;
+
+            while (rate > 1024)
+            {
+                rate /= 1024;
+                ordinal++;
+            }
+
+            return (string.Format("{0} {1}B", Math.Round(rate, 2, MidpointRounding.AwayFromZero), ordinals[ordinal]));
+        }
 
     }
 
