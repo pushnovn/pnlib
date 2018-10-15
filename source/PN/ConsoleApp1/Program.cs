@@ -14,10 +14,23 @@ namespace ConsoleApp1
 {
     class Program
     {
+        [SQLite.SQLiteName("Value")]
+        private class Value
+        {
+            public int Id { get; set; }
+
+            public string Valuesss { get; set; }
+        }
         static void Main(string[] args)
         {
             SQLite.PathToDB = "sqlite.db";
-            
+
+            SQLite.PathToDB = "test.db";
+
+    //        SQLite.Set(new Value());
+
+            var values = SQLite.Get<Value>();
+            // Assert.NotNull(values);
 
             var ttt = SQLite.Get<New>();
 

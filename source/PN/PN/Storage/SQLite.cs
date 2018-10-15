@@ -1,14 +1,4 @@
-﻿//using System;
-//using System.Collections.Generic;
-//using System.Text;
-
-//namespace PN.Storage
-//{
-//    class SQLite
-//    {
-//    }
-//}
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Data.SQLite;
@@ -16,17 +6,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-
-// ReSharper disable FieldCanBeMadeReadOnly.Global
-// ReSharper disable ConvertToConstant.Global
-// ReSharper disable ClassNeverInstantiated.Global
-// ReSharper disable RedundantArgumentDefaultValue
-// ReSharper disable InvalidXmlDocComment
-// ReSharper disable SuggestBaseTypeForParameter
-// ReSharper disable ClassNeverInstantiated.Local
-// ReSharper disable ArrangeTypeMemberModifiers
-// ReSharper disable UnusedVariable
-// ReSharper disable MemberCanBePrivate.Local
 
 namespace PN.Storage
 {
@@ -190,7 +169,7 @@ namespace PN.Storage
                 }
 
                 resultType = resultType ?? data[0].GetType();
-                var tableName = resultType.GetCustomAttribute<SQLiteNameAttribute>()?.Name ?? resultType.Name + "s";
+                var tableName = '"' + (resultType.GetCustomAttribute<SQLiteNameAttribute>()?.Name ?? resultType.Name + "s") + '"';
                 var props = resultType.GetProperties(bindingFlags).Where(prop => prop.GetCustomAttribute<SQLiteIgnoreAttribute>() == null).ToList();
                 
                 // Открываем соединение к БД (после запроса автоматом закроем его)
@@ -369,7 +348,7 @@ namespace PN.Storage
                                 {
                                     var value = prop.GetValue(obj, null);
                                     value = (value != null && value is string) ? (value as string).Replace("\'", "\'\'") : value;
-                                    strWithValues += value == null ? "NULL," : "'{value}',";
+                                    strWithValues += value == null ? "NULL," : $"'{value}',";
                                 }
 
                                 strWithValues = strWithValues.TrimEnd(',') + "),";
@@ -488,7 +467,12 @@ namespace PN.Storage
                             //Заносим значения ячеек в наш новый объект
                             try
                             {
-                                prop.SetValue(resObj, Convert.ChangeType(sqliteDataReader[GetPropertyNameInTable(prop)], prop.PropertyType), null);
+                                var propertyNameInTable = GetPropertyNameInTable(prop);
+                                var objectFromSQLiteDataReader = sqliteDataReader[propertyNameInTable];
+
+                                prop.SetValue(resObj,
+                                    objectFromSQLiteDataReader != DBNull.Value ?
+                                    Convert.ChangeType(objectFromSQLiteDataReader, prop.PropertyType) : null, null);
                             }
                             catch
                             {

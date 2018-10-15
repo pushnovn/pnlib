@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Pushnovn.PN</id>
-    <version>0.1.4.4-pre-alpha</version>
+    <version>0.1.4.5-pre-alpha</version>
     <title>PN lib (Pre-Alpha)</title>
     <authors>Pushnovn</authors>
     <owners>Pushnovn</owners>
@@ -10,9 +10,8 @@
     <description>Internal PN lib</description>
     <releaseNotes>
 SQLite:
-- Added SQLiteIgnore attribute (for ignoring properties);
-- Added SQLiteName attribute (for setting names to properties=columns and classes=tables);
-- Fixed little Update bug (maybe fixed).
+- Fixed Set error.
+- Fixed DBNull checking error.
     </releaseNotes>
     <projectUrl>http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http</projectUrl>
     <copyright>Copyright 2018</copyright>
