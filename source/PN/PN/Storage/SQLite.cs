@@ -55,7 +55,7 @@ namespace PN.Storage
             return (int)Worker.ExecuteQuery(null, typeof(T), lastId, -1, subStrings);
         }
 
-        public static List<T> GetWhere<T>(Where where)
+        public static List<T> GetWhere<T>(WhereCondition where)
         {
             return (List<T>)Worker.ExecuteQuery(null, typeof(T), -1, -1, null, false, where);
         }
@@ -88,7 +88,7 @@ namespace PN.Storage
 
         public static string PathToDB { get; set; }
 
-        public class Where
+        public class WhereCondition
         {
             public enum Funcs
             {
@@ -171,7 +171,7 @@ namespace PN.Storage
                                                 int count = -1,
                                                 List<string> subStrings = null,
                                                 bool getElemsBefore = false,
-                                                Where where = null)
+                                                WhereCondition where = null)
             {
                 var commandName = GetCurrentMethodName();
 
@@ -179,24 +179,25 @@ namespace PN.Storage
                 if (!CheckConnection())
                     return null;
 
-                if (commandName.Equals("Truncate"))
-                    goto move;
+                if (commandName.Equals("Truncate") == false)
+                {
+                    // Проверяем, не подсунули ли нам пустоту вместо данных для работы
+                    if ((!commandName.Contains("Get")) && ((data == null) || (data.Count() < 1)))
+                        return null;
 
-                // Проверяем, не подсунули ли нам пустоту вместо данных для работы
-                if ((!commandName.Contains("Get")) && ((data == null) || (data.Count() < 1)))
-                    return null;
-                if (data != null)
-                    foreach (var obj in data)
-                        if (obj == null)
-                            return null;
-                move:
+                    if ((data ?? new object[0]).Any(d => d == null))
+                        return null;
+                }
+
                 resultType = resultType ?? data[0].GetType();
-
+                var tableName = resultType.GetCustomAttribute<SQLiteNameAttribute>()?.Name ?? resultType.Name + "s";
+                var props = resultType.GetProperties(bindingFlags).Where(prop => prop.GetCustomAttribute<SQLiteIgnoreAttribute>() == null).ToList();
+                
                 // Открываем соединение к БД (после запроса автоматом закроем его)
                 using (SQLiteConnection conn = GetConnection())
                 {
                     // Получаем список полей типа, который должны вернуть
-                    var fieldNames = resultType.GetProperties(bindingFlags).Select(field => field.Name).ToList();
+                    // var fieldNames = resultType.GetProperties(bindingFlags).Select(field => field.Name).ToList();
 
                     conn.Open();
                     var command = conn.CreateCommand();
@@ -206,24 +207,21 @@ namespace PN.Storage
                         #region GetCount method implementation
 
                         case "GetCount":
-                            command.CommandText = string.Format("SELECT COUNT(*) FROM {0}", resultType.Name + 's');
+                            command.CommandText = $"SELECT COUNT(*) FROM {tableName}";
 
                             if (subStrings != null)
                             {
                                 command.CommandText += " WHERE (";
 
-                                foreach (var field in fieldNames)
+                                foreach (var prop in props)
                                     foreach (var subStr in subStrings)
-                                        command.CommandText += " " + field + " LIKE '%" + subStr + "%' OR";
+                                        command.CommandText += $" {GetPropertyNameInTable(prop)} LIKE '%{subStr}%' OR";
 
-                                command.CommandText =
-                                        command.CommandText.Trim().Substring(0, command.CommandText.Length - 2) + ") ";
+                                command.CommandText = command.CommandText.Trim().Substring(0, command.CommandText.Length - 2) + ") ";
                             }
 
                             if (lastId > -1)
-                                command.CommandText +=
-                                        string.Format(" " + (subStrings != null ? " AND " : " WHERE ") + " (id > {0})",
-                                                      lastId);
+                                command.CommandText += $" {(subStrings != null ? " AND " : " WHERE ")}  (id > {lastId})";
 
                             command.CommandText += ";";
 
@@ -240,73 +238,35 @@ namespace PN.Storage
 
                         case "Get":
                         case "GetSpecial":
-                            command.CommandText = string.Format("SELECT * FROM {0}", resultType.Name + 's');
+                            command.CommandText = $"SELECT * FROM {tableName}";
 
                             if (subStrings != null)
                             {
                                 command.CommandText += " WHERE (";
 
-                                foreach (var field in fieldNames)
+                                foreach (var prop in props)
                                     foreach (var subStr in subStrings)
-                                        command.CommandText += " " + field + " LIKE '%" + subStr + "%' OR";
+                                        command.CommandText += $" {GetPropertyNameInTable(prop)} LIKE '%{subStr}%' OR";
 
-                                command.CommandText =
-                                        command.CommandText.Trim().Substring(0, command.CommandText.Length - 2) + ") ";
+                                command.CommandText = command.CommandText.Trim().Substring(0, command.CommandText.Length - 2) + ") ";
                             }
 
                             if (lastId > -1)
-                                command.CommandText += string.Format(" " +
-                                                                     (subStrings != null ? " AND " : " WHERE ") +
-                                                                     " (id " +
-                                                                     (getElemsBefore ? "<" : ">") +
-                                                                     " {0})", lastId);
+                                command.CommandText += $" {(subStrings != null ? " AND " : " WHERE ")} (id {(getElemsBefore ? "<" : ">")}  {lastId})";
 
                             if (getElemsBefore)
                                 command.CommandText += " ORDER BY id DESC ";
 
-                            command.CommandText += count > -1 ? string.Format(" LIMIT {0};", count) : ";";
-
-                            using (SQLiteDataReader sqliteDataReader = command.ExecuteReader())
-                            {
-                                // Создаём лист типов, которые надо вернуть
-                                var result = CreateList(resultType);
-                                // Пробегаемся по всем строкам результата
-                                while (sqliteDataReader.Read())
-                                {
-                                    // Для каждой строки создаём свой объект нужного нам типа
-                                    var resObj = Activator.CreateInstance(resultType);
-
-                                    foreach (var fieldName in fieldNames)
-                                    {
-                                        // Для каждого поля нашего типа достаём данные из столбца с названием поля
-                                        PropertyInfo prop = resultType.GetProperty(fieldName);
-
-                                        //Заносим значения ячеек в наш новый объект
-                                        try
-                                        {
-                                            prop.SetValue(resObj,
-                                                          Convert.ChangeType(sqliteDataReader[fieldName],
-                                                                             prop.PropertyType), null);
-                                        }
-                                        catch
-                                        {
-                                            prop.SetValue(resObj, GetDefaultValue(prop.PropertyType), null);
-                                        }
-                                    }
-
-                                    // И, наконец, добавляем полученный объект в лист с результатами
-                                    result.Add(resObj);
-                                }
-
-                                return result;
-                            }
+                            command.CommandText += count > -1 ? $" LIMIT {count};" : ";";
+                            
+                            return GetResultsFromDB(command, resultType, props);
 
                         #endregion
 
                         #region GetWhere method implementation
 
                         case "GetWhere":
-                            command.CommandText = string.Format("SELECT * FROM {0}", resultType.Name + 's');
+                            command.CommandText = $"SELECT * FROM {tableName}";
 
                             for (int i = 0; i < where.Conditions.Count; i++)
                             {
@@ -319,29 +279,29 @@ namespace PN.Storage
                                 var quote = condition.Parameters[0] is string ? "'" : string.Empty;
                                 switch (condition.Operation)
                                 {
-                                    case Where.Funcs.BiggerThen:
-                                    case Where.Funcs.LessThen:
-                                    case Where.Funcs.Equals:
-                                    case Where.Funcs.NotEquals:
+                                    case WhereCondition.Funcs.BiggerThen:
+                                    case WhereCondition.Funcs.LessThen:
+                                    case WhereCondition.Funcs.Equals:
+                                    case WhereCondition.Funcs.NotEquals:
                                         if (condition.Parameters.Length > 0)
                                             command.CommandText += $"{condition.PropertyName} " +
-                                                                   Where.SimpleOperators[condition.Operation] +
+                                                                   WhereCondition.SimpleOperators[condition.Operation] +
                                                                    $" {quote}{condition.Parameters[0]}{quote}";
                                         break;
 
-                                    case Where.Funcs.Like:
+                                    case WhereCondition.Funcs.Like:
                                         if (condition.Parameters.Length > 0)
                                             command.CommandText += $"{condition.PropertyName} LIKE " +
                                                                    $"{quote}%{condition.Parameters[0]}%{quote}";
                                         break;
 
-                                    case Where.Funcs.Between:
+                                    case WhereCondition.Funcs.Between:
                                         if (condition.Parameters.Length > 1)
                                             command.CommandText += $"{condition.PropertyName} BETWEEN " +
                                                                    $"{condition.Parameters[0]} AND {condition.Parameters[1]}";
                                         break;
 
-                                    case Where.Funcs.In:
+                                    case WhereCondition.Funcs.In:
                                         if (condition.Parameters.Length > 0)
                                         {
                                             command.CommandText += $"{condition.PropertyName} IN (";
@@ -353,11 +313,11 @@ namespace PN.Storage
 
                                         break;
 
-                                    case Where.Funcs.Contains:
+                                    case WhereCondition.Funcs.Contains:
                                         if (string.IsNullOrEmpty(condition.PropertyName))
-                                            foreach (var field in fieldNames)
+                                            foreach (var prop in props)
                                                 foreach (var subStr in condition.Parameters)
-                                                    command.CommandText += " " + field + " LIKE '%" + subStr + "%' OR";
+                                                    command.CommandText += " " + GetPropertyNameInTable(prop) + " LIKE '%" + subStr + "%' OR";
                                         else
                                             foreach (var arrItem in (condition.Parameters[0] is IList)
                                                     ? condition.Parameters[0] as IList
@@ -386,42 +346,9 @@ namespace PN.Storage
                             if (where.Reverse)
                                 command.CommandText += " ORDER BY id DESC ";
 
-                            command.CommandText += where.Limit > -1 ? string.Format(" LIMIT {0};", where.Limit) : ";";
+                            command.CommandText += where.Limit > -1 ? $" LIMIT {where.Limit};" : ";";
 
-                            using (SQLiteDataReader sqliteDataReader = command.ExecuteReader())
-                            {
-                                // Создаём лист типов, которые надо вернуть
-                                var result = CreateList(resultType);
-                                // Пробегаемся по всем строкам результата
-                                while (sqliteDataReader.Read())
-                                {
-                                    // Для каждой строки создаём свой объект нужного нам типа
-                                    var resObj = Activator.CreateInstance(resultType);
-
-                                    foreach (var fieldName in fieldNames)
-                                    {
-                                        // Для каждого поля нашего типа достаём данные из столбца с названием поля
-                                        PropertyInfo prop = resultType.GetProperty(fieldName);
-
-                                        //Заносим значения ячеек в наш новый объект
-                                        try
-                                        {
-                                            prop.SetValue(resObj,
-                                                          Convert.ChangeType(sqliteDataReader[fieldName],
-                                                                             prop.PropertyType), null);
-                                        }
-                                        catch
-                                        {
-                                            prop.SetValue(resObj, GetDefaultValue(prop.PropertyType), null);
-                                        }
-                                    }
-
-                                    // И, наконец, добавляем полученный объект в лист с результатами
-                                    result.Add(resObj);
-                                }
-
-                                return result;
-                            }
+                            return GetResultsFromDB(command, resultType, props);
 
                         #endregion
 
@@ -429,32 +356,28 @@ namespace PN.Storage
 
                         case "Set":
 
-                            var tableToInsertPartOfQuery = string.Format("INSERT INTO {0} ", resultType.Name + 's');
+                            var tableToInsertPartOfQuery = $"INSERT INTO {tableName}";
 
-                            fieldNames.Remove(fieldNames.FirstOrDefault(fn => fn.ToLower() == "id"));
+                            props.Remove(props.FirstOrDefault(prop => prop.Name.ToLower() == "id"));
 
-                            var strWithFields =
-                                    string.Format(" ({0}) values ",
-                                                  (string.Join(",", fieldNames.ToArray()).TrimEnd(',')));
+                            var strWithFields = $" ({string.Join(",", props.Select(prop => GetPropertyNameInTable(prop)).ToArray()).TrimEnd(',')}) values ";
                             var strWithValues = string.Empty;
                             foreach (var obj in data)
                             {
                                 strWithValues += '(';
-                                foreach (var fieldName in fieldNames)
+                                foreach (var prop in props)
                                 {
-                                    var value = resultType.GetProperty(fieldName).GetValue(obj, null);
-                                    value = value is string ? (value as string).Replace("\'", "\'\'") : value;
-                                    strWithValues += string.Format("'{0}',", value);
+                                    var value = prop.GetValue(obj, null);
+                                    value = (value != null && value is string) ? (value as string).Replace("\'", "\'\'") : value;
+                                    strWithValues += value == null ? "NULL," : "'{value}',";
                                 }
 
                                 strWithValues = strWithValues.TrimEnd(',') + "),";
                             }
 
                             strWithValues = strWithValues.TrimEnd(',') + ";";
-
-
-                            command.CommandText =
-                                    string.Format("{0}{1}{2}", tableToInsertPartOfQuery, strWithFields, strWithValues);
+                            
+                            command.CommandText = tableToInsertPartOfQuery + strWithFields + strWithValues;
 
                             command.ExecuteNonQuery();
                             break;
@@ -465,36 +388,33 @@ namespace PN.Storage
 
                         case "Update":
 
-                            var tableToInsertPartOfQueryForUpdateMethod =
-                                    string.Format("UPDATE {0} SET ", resultType.Name + 's');
+                            var tableToInsertPartOfQueryForUpdateMethod = $"UPDATE {tableName} SET ";
 
-                            fieldNames.Remove(fieldNames.FirstOrDefault(fn => fn.ToLower() == "id"));
+                            props.Remove(props.FirstOrDefault(prop => prop.Name.ToLower() == "id"));
 
                             var idsEnum = string.Empty;
                             var groupString = string.Empty;
-                            foreach (var fieldName in fieldNames)
+                            foreach (var prop in props)
                             {
-                                idsEnum = string.Empty;
-                                groupString += fieldName + " = CASE id ";
+                                groupString += GetPropertyNameInTable(prop) + " = CASE id ";
                                 foreach (var obj in data)
                                 {
-                                    var value = resultType.GetProperty(fieldName).GetValue(obj, null) ?? "null";
-                                    value = value is string ? (value as string).Replace("\'", "\'\'") : value;
+                                    var value = prop.GetValue(obj, null);
+                                    value = value != null && value is string ? (value as string).Replace("\'", "\'\'") : value;
 
-                                    groupString += string.Format("WHEN {0} THEN '{1}' ",
-                                                                 resultType.GetProperty("id", bindingFlags | BindingFlags.IgnoreCase).GetValue(obj, null) ?? "null",
-                                                                 value);
-                                    idsEnum += resultType.GetProperty("id", bindingFlags | BindingFlags.IgnoreCase).GetValue(obj, null) + ",";
+                                    var id = resultType.GetProperty("id", bindingFlags | BindingFlags.IgnoreCase).GetValue(obj, null);
+
+                                    groupString += $"WHEN {id} THEN " + (value == null ? "NULL " : $"'{value}' ");
+
+                                    idsEnum += id + ",";
                                 }
 
                                 groupString += "END,";
                             }
+                            
+                            groupString = $"{groupString.TrimEnd(',')} WHERE id IN ({idsEnum.TrimEnd(',')});";
 
-                            idsEnum = idsEnum.TrimEnd(',');
-                            groupString = groupString.TrimEnd(',') + string.Format(" WHERE id IN ({0});", idsEnum);
-
-                            command.CommandText =
-                                    string.Format("{0}{1}", tableToInsertPartOfQueryForUpdateMethod, groupString);
+                            command.CommandText = tableToInsertPartOfQueryForUpdateMethod + groupString;
                             command.ExecuteNonQuery();
 
                             break;
@@ -534,9 +454,8 @@ namespace PN.Storage
                         #region ExecuteQuery method implementation
 
                         case "ExecuteString":
-
-                            var query = data[0].ToString();
-                            command.CommandText = query;
+                            
+                            command.CommandText = data[0].ToString();
 
                             command.ExecuteNonQuery();
                             break;
@@ -552,6 +471,40 @@ namespace PN.Storage
                                                        BindingFlags.Static | BindingFlags.Instance |
                                                        BindingFlags.DeclaredOnly;
 
+            static IList GetResultsFromDB(SQLiteCommand command, Type resultType, List<PropertyInfo> props)
+            {
+                using (SQLiteDataReader sqliteDataReader = command.ExecuteReader())
+                {
+                    // Создаём лист типов, которые надо вернуть
+                    var result = CreateList(resultType);
+                    // Пробегаемся по всем строкам результата
+                    while (sqliteDataReader.Read())
+                    {
+                        // Для каждой строки создаём свой объект нужного нам типа
+                        var resObj = Activator.CreateInstance(resultType);
+
+                        foreach (var prop in props)
+                        {
+                            //Заносим значения ячеек в наш новый объект
+                            try
+                            {
+                                prop.SetValue(resObj, Convert.ChangeType(sqliteDataReader[GetPropertyNameInTable(prop)], prop.PropertyType), null);
+                            }
+                            catch
+                            {
+                                prop.SetValue(resObj, GetDefaultValue(prop.PropertyType), null);
+                            }
+                        }
+
+                        // И, наконец, добавляем полученный объект в лист с результатами
+                        result.Add(resObj);
+                    }
+
+                    return result;
+                }
+            }
+
+
             // Get the type of calling method
             // It's may be Get | Set | Update | Delete
             private static string GetCurrentMethodName()
@@ -561,15 +514,11 @@ namespace PN.Storage
                 // frame 1 = ExecuteQuery
                 // frame 2 = Get | Set | Update | Delete
                 StackFrame sf = st.GetFrame(2);
-                var typename = sf.GetMethod().Name;
-                return typename;
+                return sf.GetMethod().Name;
             }
 
 
-            static object GetDefaultValue(Type type)
-            {
-                return type.IsValueType ? Activator.CreateInstance(type) : null;
-            }
+            static object GetDefaultValue(Type type) => type.IsValueType ? Activator.CreateInstance(type) : null;
 
             static IList CreateList(Type listItemType)
             {
@@ -577,6 +526,8 @@ namespace PN.Storage
                 return (IList)Activator.CreateInstance(genericListType);
             }
             
+            static string GetPropertyNameInTable(PropertyInfo prop) => prop.GetCustomAttribute<SQLiteNameAttribute>()?.Name ?? prop.Name;
+
             static SQLiteConnection GetConnection()
             {
                 if (Utils.Utils.Internal.CurrentPlatformIsWindows)
@@ -661,5 +612,31 @@ namespace PN.Storage
             //     }
             // }
         }
+
+
+        #region Attributes
+
+        /// <summary>
+        /// Name of the table or the field in SQLite DB
+        /// </summary>
+        [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
+        public class SQLiteNameAttribute : Attribute
+        {
+            public readonly string Name;
+
+            public SQLiteNameAttribute(string name)
+            {
+                Name = name;
+            }
+        }
+
+        /// <summary>
+        /// GlobalHeadersAttribute will be ignored for action where you will define IgnoreHeadersAttribute
+        /// </summary>
+        [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
+        public class SQLiteIgnoreAttribute : Attribute { }
+        
+        #endregion
+
     }
 }

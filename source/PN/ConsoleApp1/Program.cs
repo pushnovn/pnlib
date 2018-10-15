@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
-using System.Threading;
 using System.Threading.Tasks;
 using static PN.Network.HTTP;
 using static PN.Network.HTTP.Entities;
@@ -18,6 +17,7 @@ namespace ConsoleApp1
         static void Main(string[] args)
         {
             SQLite.PathToDB = "sqlite.db";
+            
 
             var ttt = SQLite.Get<New>();
 
@@ -157,7 +157,11 @@ namespace ConsoleApp1
         public class New
         {
             public int Id { get; set; }
-            public string Title { get; set; }
+          
+            //  [SQLite.SQLiteName("Title")]
+            [SQLite.SQLiteIgnore]
+            public string Titl { get; set; }
+
             public string Text { get; set; }
         }
 
