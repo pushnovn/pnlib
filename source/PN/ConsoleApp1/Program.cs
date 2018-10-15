@@ -21,11 +21,28 @@ namespace ConsoleApp1
 
             public string Valuesss { get; set; }
         }
+
+        [SQLite.SQLiteName("sqlite_master")]
+        class sqlite_master
+        {
+            public string type { get; set; }
+            public string name { get; set; }
+            public string tbl_name { get; set; }
+            public string rootpage { get; set; }
+            public string sql { get; set; }
+        }
+
+
         static void Main(string[] args)
         {
             SQLite.PathToDB = "sqlite.db";
 
             SQLite.PathToDB = "test.db";
+
+            var ppp = SQLite.GetWhere<sqlite_master>(new SQLite.WhereCondition().Add("type", SQLite.WhereCondition.Funcs.Equals, "table"));
+
+
+            SQLite.ExecuteString("SELECT * FROM sqlite_master WHERE type='table';");
 
     //        SQLite.Set(new Value());
 

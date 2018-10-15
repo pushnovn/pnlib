@@ -130,7 +130,7 @@ namespace PN.Storage
             public bool Reverse = false;
             public ConditionTypes ConditionType = ConditionTypes.And;
 
-            public void Add(string propertyName, Funcs operation, params object[] parameters)
+            public WhereCondition Add(string propertyName, Funcs operation, params object[] parameters)
             {
                 Conditions.Add(new Condition
                 {
@@ -138,6 +138,8 @@ namespace PN.Storage
                     Operation = operation,
                     Parameters = parameters,
                 });
+
+                return this;
             }
         }
 
