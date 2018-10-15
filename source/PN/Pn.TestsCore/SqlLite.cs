@@ -1,6 +1,5 @@
 using Xunit;
 using System;
-using System.Collections.Generic;
 using PN.Storage;
 
 // ReSharper disable UnusedAutoPropertyAccessor.Local
@@ -12,22 +11,30 @@ namespace Pn.TestsCore
         private const string TestDb = "test.db";
 
         [Fact]
-        public void SetTest()
+        public bool SetTest()
         {
             SQLite.PathToDB = TestDb;
-            var a = SQLite.Set(new Value
+            var a = SQLite.Set(new Message
             {
-                StringValue = Guid.NewGuid().ToString()
+                MessageText = Guid.NewGuid().ToString()
             });
+
             Assert.NotNull(a);
+
+            return true;
         }
 
         [Fact]
-        public void GetTest()
+        public bool GetTest()
         {
             SQLite.PathToDB = TestDb;
-            var values = SQLite.Get<Value>();
-            Assert.NotNull(values);
+            var list = SQLite.Get<Value>();
+            Assert.NotNull(list);
+
+            var iList = SQLite.Get(typeof(Value));
+            Assert.NotNull(iList);
+
+            return true;
         }
 
         [Fact]
@@ -38,35 +45,42 @@ namespace Pn.TestsCore
             Assert.NotNull(values);
         }
 
-        // [Fact]
+        [Fact]
         public void UpdateTest()
         {
             SQLite.PathToDB = TestDb;
         }
 
-        // [Fact]
-        public void MainTest()
+        [Fact]
+        public void DeleteTest()
         {
             SQLite.PathToDB = TestDb;
+            var setTest = SetTest();
+            Assert.True(setTest, "setTest");
+
+            var getTest = GetTest();
+            Assert.True(getTest, "getTest");
+
             var counts = new int[2];
-            counts[0] = SQLite.GetCount<Value>();
+            counts[0] = SQLite.Get<Value>().Count;
 
-            SQLite.Set(new Value
-            {
-                StringValue = Guid.NewGuid().ToString()
-            });
-
-            counts[1] = SQLite.GetCount<Value>();
-
-            Assert.NotEqual(counts[0], counts[1]);
+            counts[1] = SQLite.Get<Value>().Count;
         }
 
+        [SQLite.SQLiteName("Values")]
         private class Value
         {
             // ReSharper disable once UnusedMember.Local
             public int Id { get; set; }
 
             public string StringValue { get; set; }
+        }
+
+        private class Message
+        {
+            public int Id { get; set; }
+
+            public string MessageText { get; set; }
         }
     }
 }
