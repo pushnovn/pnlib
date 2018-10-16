@@ -74,7 +74,7 @@ namespace PN.Network
 
                 requestModel = requestModel ?? new RequestEntity();
 
-                var requestUri = new Uri(Utils.Utils.Internal.ProcessComplexString(methodInfo.MethodFullUrl, requestModel));
+                var requestUri = new Uri(Utils.Internal.ProcessComplexString(methodInfo.MethodFullUrl, requestModel));
                 HttpWebRequest request = (HttpWebRequest) WebRequest.Create(requestUri);
 
                 request.Method = methodInfo.RequestType.ToString();
@@ -96,7 +96,7 @@ namespace PN.Network
                     if (string.IsNullOrWhiteSpace(header.Key) == false)
                     {
                         request.Headers[header.Key] =
-                            Utils.Utils.Internal.ProcessComplexString(header.Value, requestModel);
+                            Utils.Internal.ProcessComplexString(header.Value, requestModel);
                     }
                 }
 
@@ -138,7 +138,7 @@ namespace PN.Network
                         try
                         {
                             if (typeof(T).IsValueType)
-                                instance = Utils.Utils.Converters.FromByteArray<T>(responseBody);
+                                instance = Utils.Converters.FromByteArray<T>(responseBody);
                             else if (typeof(T) == typeof(string))
                                 instance = responseJson;
                             else if (typeof(T) == typeof(byte[]))
@@ -148,15 +148,15 @@ namespace PN.Network
                         }
                         catch (Exception exc)
                         {
-                            instance = Utils.Utils.Internal.CreateDefaultObject(methodInfo.ReturnType);
-                            Utils.Utils.Internal.TrySetValue(ref instance, exc, nameof(ResponseEntity.Exception));
+                            instance = Utils.Internal.CreateDefaultObject(methodInfo.ReturnType);
+                            Utils.Internal.TrySetValue(ref instance, exc, nameof(ResponseEntity.Exception));
                             LastResponse.Exception = exc;
                         }
 
-                        Utils.Utils.Internal.TrySetValue(ref instance, responseBody, nameof(ResponseEntity.ResponseBody));
-                        Utils.Utils.Internal.TrySetValue(ref instance, responseJson, nameof(ResponseEntity.ResponseText));
-                        Utils.Utils.Internal.TrySetValue(ref instance, responseJson, nameof(ResponseEntity.ResponseDynamic), true);
-                        Utils.Utils.Internal.TrySetValue(ref instance, response.StatusCode, nameof(ResponseEntity.HttpCode));
+                        Utils.Internal.TrySetValue(ref instance, responseBody, nameof(ResponseEntity.ResponseBody));
+                        Utils.Internal.TrySetValue(ref instance, responseJson, nameof(ResponseEntity.ResponseText));
+                        Utils.Internal.TrySetValue(ref instance, responseJson, nameof(ResponseEntity.ResponseDynamic), true);
+                        Utils.Internal.TrySetValue(ref instance, response.StatusCode, nameof(ResponseEntity.HttpCode));
 
                         return (T) instance;
                     }
@@ -167,8 +167,8 @@ namespace PN.Network
             catch (Exception ex)
             {
                 LastResponse = new ResponseEntity() {Exception = ex};
-                var instance = Utils.Utils.Internal.CreateDefaultObject(methodInfo.ReturnType);
-                return (T) Utils.Utils.Internal.TrySetValue(ref instance, ex, nameof(ResponseEntity.Exception));
+                var instance = Utils.Internal.CreateDefaultObject(methodInfo.ReturnType);
+                return (T) Utils.Internal.TrySetValue(ref instance, ex, nameof(ResponseEntity.Exception));
             }
         }
 

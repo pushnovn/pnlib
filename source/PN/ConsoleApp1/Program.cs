@@ -14,7 +14,7 @@ namespace ConsoleApp1
 {
     class Program
     {
-        [SQLite.SQLiteName("Value")]
+        [SQLite.SQLiteName("Value_")]
         private class Value
         {
             public int Id { get; set; }
@@ -41,12 +41,25 @@ namespace ConsoleApp1
 
             SQLite.PathToDB = "test.db";
 
-       //     SQLite.Set(new Value() { Valuesss = "Valll1", ListV = new List<string>() { "v1", "v2", "v3" } });
+            var test = SQLite.Set(
+                new Value() { Valuesss = "Valll1", ListV = new List<string>() { "v1", "v2", "v3" } },
+                new Value() { Valuesss = "Valll1", ListV = new List<string>() { "v1", "v2", "v3" } },
+                new Value() { Valuesss = "Valll1", ListV = new List<string>() { "v1", "v2", "v3" } },
+                new Value() { Valuesss = "Valll1", ListV = new List<string>() { "v1", "v2", "v3" } });
 
+            var ssqqCOUNT = SQLite.GetCount<Value>();
             var ssqq = SQLite.Get<Value>();
+            if (ssqq == null)
+            {
+                Console.WriteLine(SQLite.LastQueryException?.ToString());
+            }
 
-            ssqq.FirstOrDefault().ListV.Remove("v6");
-            ssqq.FirstOrDefault().ListV.Add("v7");
+            try
+            {
+                ssqq.FirstOrDefault().ListV.Remove("v6");
+                ssqq.FirstOrDefault().ListV.Add("v7");
+            }
+            catch { }
 
             SQLite.Update(ssqq.ToArray());
 
@@ -335,12 +348,12 @@ namespace ConsoleApp1
 
             var arr = new byte[1];
 
-            var str = PN.Utils.Utils.Converters.BytesToString(arr);
+            var str = PN.Utils.Converters.BytesToString(arr);
 
-            var bewarr = PN.Utils.Utils.Converters.StringToBytes("");
+            var bewarr = PN.Utils.Converters.StringToBytes("");
 
 
-            PN.Utils.Utils.Debug.CalculateMethodTimeExecution(() =>
+            PN.Utils.Debug.CalculateMethodTimeExecution(() =>
             {
                 StackTrace st = new StackTrace();
                 StackFrame[] fr = st.GetFrames();
@@ -391,7 +404,7 @@ namespace ConsoleApp1
 
 
 
-            var uio = PN.Utils.Utils.Converters.NumberToShortFormattedString(8);
+            var uio = PN.Utils.Converters.NumberToShortFormattedString(8);
 
 
 
@@ -419,7 +432,7 @@ namespace ConsoleApp1
             exampl = SSS2.Example;
 
             MethodBase ttt = null;
-            PN.Utils.Utils.Debug.CalculateMethodTimeExecution(() =>
+            PN.Utils.Debug.CalculateMethodTimeExecution(() =>
             {
                 ttt = new StackTrace().GetFrame(3).GetMethod();
             }, "single");

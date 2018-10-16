@@ -18,7 +18,7 @@ namespace PN.Storage
 
         public static List<T> Get<T>()
         {
-            return (List<T>)Worker.ExecuteQuery(null, typeof(T));
+            return (List<T>) Worker.ExecuteQuery(null, typeof(T));
         }
 
         public static int GetCount<T>()
@@ -26,24 +26,24 @@ namespace PN.Storage
             return (int)Worker.ExecuteQuery(null, typeof(T));
         }
 
-        public static object Set(params object[] data)
+        public static SQLiteMethodResponse Set(params object[] data)
         {
-            return Worker.ExecuteQuery(data);
+            return (SQLiteMethodResponse) Worker.ExecuteQuery(data);
         }
 
-        public static void Update(params object[] data)
+        public static SQLiteMethodResponse Update(params object[] data)
         {
-            Worker.ExecuteQuery(data);
+            return (SQLiteMethodResponse) Worker.ExecuteQuery(data);
         }
 
-        public static void Delete(params object[] data)
+        public static SQLiteMethodResponse Delete(params object[] data)
         {
-            Worker.ExecuteQuery(data);
+            return (SQLiteMethodResponse) Worker.ExecuteQuery(data);
         }
 
-        public static void Truncate<T>(params object[] data)
+        public static SQLiteMethodResponse Truncate<T>(params object[] data)
         {
-            Worker.ExecuteQuery(data, typeof(T));
+            return (SQLiteMethodResponse) Worker.ExecuteQuery(data, typeof(T));
         }
 
         public static void ExecuteString(params object[] data)
@@ -79,7 +79,8 @@ namespace PN.Storage
                 ConditionType = condType,
             };
         }
-
+        
+        public static Exception LastQueryException;
 
         internal class Worker
         {
@@ -91,10 +92,8 @@ namespace PN.Storage
                 // Проверяем по сути пароль
                 if (!CheckConnection())
                     return null;
-
-                var hren = ConvertArrayOfSingleListToArrayOfItems(data);
-
-                data = ConvertArrayOfSingleListToArrayOfItems(data);
+                
+                data = ConvertArrayWithSingleListToArrayOfItems(data);
 
                 if (commandName.Equals("Truncate") == false)
                 {
@@ -129,10 +128,18 @@ namespace PN.Storage
 
                         case "GetCount":
                             command.CommandText = $"SELECT COUNT(*) FROM {tableName} {CreateWherePartOfSqlRequest(where, props)}";
-                            using (SQLiteDataReader sqliteDataReader = command.ExecuteReader())
+                            try
                             {
-                                sqliteDataReader.Read();
-                                return sqliteDataReader.GetInt32(0);
+                                using (SQLiteDataReader sqliteDataReader = command.ExecuteReader())
+                                {
+                                    sqliteDataReader.Read();
+                                    return sqliteDataReader.GetInt32(0);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                LastQueryException = ex;
+                                return -1;
                             }
 
                         #endregion
@@ -147,7 +154,7 @@ namespace PN.Storage
 
                             var strWithFields = $" ({string.Join(",", props.Select(prop => GetPropertyNameInTable(prop)).ToArray()).TrimEnd(',')}) values ";
                             var strWithValues = string.Empty;
-                            foreach (var obj in ConvertArrayOfSingleListToArrayOfItems(data))
+                            foreach (var obj in ConvertArrayWithSingleListToArrayOfItems(data))
                             {
                                 strWithValues += '(';
                                 foreach (var prop in props)
@@ -163,13 +170,10 @@ namespace PN.Storage
 
                                 strWithValues = strWithValues.TrimEnd(',') + "),";
                             }
-
-                            strWithValues = strWithValues.TrimEnd(',') + ";";
                             
-                            command.CommandText = tableToInsertPartOfQuery + strWithFields + strWithValues;
+                            command.CommandText = tableToInsertPartOfQuery + strWithFields + strWithValues.TrimEnd(',') + ";";
 
-                            command.ExecuteNonQuery();
-                            break;
+                            return ExecuteNonQueryWithResponse(command);
 
                         #endregion
 
@@ -186,7 +190,7 @@ namespace PN.Storage
                             foreach (var prop in props)
                             {
                                 groupString += GetPropertyNameInTable(prop) + " = CASE id ";
-                                foreach (var obj in ConvertArrayOfSingleListToArrayOfItems(data))
+                                foreach (var obj in ConvertArrayWithSingleListToArrayOfItems(data))
                                 {
                                     var value = prop.GetValue(obj, null);
                                     value = value != null && value is string ? (value as string).Replace("\'", "\'\'") : value;
@@ -207,33 +211,19 @@ namespace PN.Storage
                             groupString = $"{groupString.TrimEnd(',')} WHERE id IN ({idsEnum.TrimEnd(',')});";
 
                             command.CommandText = tableToInsertPartOfQueryForUpdateMethod + groupString;
-                            command.ExecuteNonQuery();
 
-                            break;
+                            return ExecuteNonQueryWithResponse(command);
 
                         #endregion
 
                         #region Delete method implementation
 
                         case "Delete":
+
                             command.CommandText = $"DELETE FROM {tableName} {CreateWherePartOfSqlRequest(where, props)}";
 
-                            command.ExecuteNonQuery();
-                            break;
+                            return ExecuteNonQueryWithResponse(command);
 
-                        case "DeleteOld":
-                            var idsEnumForDeleteMethod = string.Empty;
-                            foreach (var obj in ConvertArrayOfSingleListToArrayOfItems(data))
-                            {
-                                idsEnumForDeleteMethod += resultType.GetProperty("id", bindingFlags | BindingFlags.IgnoreCase).GetValue(obj, null) + ",";
-                            }
-
-                            idsEnumForDeleteMethod = idsEnumForDeleteMethod.TrimEnd(',');
-
-                            command.CommandText = $"DELETE FROM {tableName} WHERE id IN ({idsEnumForDeleteMethod});";
-
-                            command.ExecuteNonQuery();
-                            break;
                         #endregion
 
                         #region Truncate method implementation
@@ -243,8 +233,7 @@ namespace PN.Storage
                             // command.CommandText = String.Format("SELECT * FROM {0};", resultType.Name + 's');
                             command.CommandText = string.Format($"DELETE FROM {tableName}");
 
-                            command.ExecuteNonQuery();
-                            break;
+                            return ExecuteNonQueryWithResponse(command);
 
                         #endregion
 
@@ -264,7 +253,20 @@ namespace PN.Storage
                 }
             }
 
-            static object[] ConvertArrayOfSingleListToArrayOfItems(object[] data)
+            static SQLiteMethodResponse ExecuteNonQueryWithResponse(SQLiteCommand command)
+            {
+                try
+                {
+                    return new SQLiteMethodResponse() { RowsCountAffected = command.ExecuteNonQuery() };
+                }
+                catch (Exception ex)
+                {
+                    LastQueryException = ex;
+                    return new SQLiteMethodResponse() { Exception = ex };
+                }
+            }
+
+            static object[] ConvertArrayWithSingleListToArrayOfItems(object[] data)
             {
                 if (data == null)
                     return null;
@@ -392,48 +394,56 @@ namespace PN.Storage
 
             static IList GetResultsFromDB(SQLiteCommand command, Type resultType, List<PropertyInfo> props)
             {
-                using (SQLiteDataReader sqliteDataReader = command.ExecuteReader())
+                try
                 {
-                    // Создаём лист типов, которые надо вернуть
-                    var result = CreateList(resultType);
-                    // Пробегаемся по всем строкам результата
-                    while (sqliteDataReader.Read())
+                    using (SQLiteDataReader sqliteDataReader = command.ExecuteReader())
                     {
-                        // Для каждой строки создаём свой объект нужного нам типа
-                        var resObj = Activator.CreateInstance(resultType);
-
-                        foreach (var prop in props)
+                        // Создаём лист типов, которые надо вернуть
+                        var result = CreateList(resultType);
+                        // Пробегаемся по всем строкам результата
+                        while (sqliteDataReader.Read())
                         {
-                            //Заносим значения ячеек в наш новый объект
-                            try
-                            {
-                                var propertyNameInTable = GetPropertyNameInTable(prop);
-                                var objectFromSQLiteDataReader = sqliteDataReader[propertyNameInTable];
+                            // Для каждой строки создаём свой объект нужного нам типа
+                            var resObj = Activator.CreateInstance(resultType);
 
-                                var objectToSetToProperty = (prop.PropertyType.IsValueType || prop.PropertyType == typeof(string)) ?
-                                    Convert.ChangeType(objectFromSQLiteDataReader, prop.PropertyType) :
-                                    StringToObject((string)objectFromSQLiteDataReader, prop.PropertyType);
-
-                                prop.SetValue(resObj, objectFromSQLiteDataReader != DBNull.Value ? objectToSetToProperty : null, null);
-                            }
-                            catch (Exception ex)
+                            foreach (var prop in props)
                             {
-                                prop.SetValue(resObj, GetDefaultValue(prop.PropertyType), null);
+                                //Заносим значения ячеек в наш новый объект
+                                try
+                                {
+                                    var propertyNameInTable = GetPropertyNameInTable(prop);
+                                    var objectFromSQLiteDataReader = sqliteDataReader[propertyNameInTable];
+
+                                    var objectToSetToProperty = (prop.PropertyType.IsValueType || prop.PropertyType == typeof(string)) ?
+                                        Convert.ChangeType(objectFromSQLiteDataReader, prop.PropertyType) :
+                                        StringToObject((string)objectFromSQLiteDataReader, prop.PropertyType);
+
+                                    prop.SetValue(resObj, objectFromSQLiteDataReader != DBNull.Value ? objectToSetToProperty : null, null);
+                                }
+                                catch (Exception ex)
+                                {
+                                    prop.SetValue(resObj, GetDefaultValue(prop.PropertyType), null);
+                                }
                             }
+
+                            // И, наконец, добавляем полученный объект в лист с результатами
+                            result.Add(resObj);
                         }
 
-                        // И, наконец, добавляем полученный объект в лист с результатами
-                        result.Add(resObj);
+                        return result;
                     }
-
-                    return result;
+                }
+                catch (Exception ex)
+                {
+                    LastQueryException = ex;
+                    return null;
                 }
             }
 
             static object StringToObject(string source, Type type)
             {
                 if (string.IsNullOrEmpty(source))
-                    return Utils.Utils.Internal.CreateDefaultObject(type, true);
+                    return Utils.Internal.CreateDefaultObject(type, true);
 
                 var decrypt = Crypt.AES.Decrypt(source, "SQLite");
                 return InternalNewtonsoft.Json.JsonConvert.DeserializeObject(decrypt, type);
@@ -473,7 +483,7 @@ namespace PN.Storage
 
             static SQLiteConnection GetConnection()
             {
-                if (Utils.Utils.Internal.CurrentPlatformIsWindows)
+                if (Utils.Internal.CurrentPlatformIsWindows)
                 {
                     if (Directory.Exists("x64") == false)
                     {
@@ -492,12 +502,12 @@ namespace PN.Storage
 
                     if (File.Exists("x64/SQLite.Interop.dll") == false)
                     {
-                        Utils.Utils.Internal.WriteResourceToFile("PN.SQLiteDlls.x64.SQLite.Interop.dll", "x64/SQLite.Interop.dll");
+                        Utils.Internal.WriteResourceToFile("PN.SQLiteDlls.x64.SQLite.Interop.dll", "x64/SQLite.Interop.dll");
                     }
 
                     if (File.Exists("x86/SQLite.Interop.dll") == false)
                     {
-                        Utils.Utils.Internal.WriteResourceToFile("PN.SQLiteDlls.x86.SQLite.Interop.dll", "x86/SQLite.Interop.dll");
+                        Utils.Internal.WriteResourceToFile("PN.SQLiteDlls.x86.SQLite.Interop.dll", "x86/SQLite.Interop.dll");
                     }
                 }
 
@@ -525,7 +535,7 @@ namespace PN.Storage
                 catch (Exception ex)
                 {
 #if DEBUG
-                    Utils.Utils.Debug.Log(ex, true);
+                    Utils.Debug.Log(ex, true);
 #endif
                     return false;
                 }
@@ -669,8 +679,14 @@ namespace PN.Storage
 
         public int GetCount<T>() => (int) SQLite.Worker.ExecuteQuery(null, typeof(T), this);
 
-        public void Delete<T>(params object[] data) => SQLite.Worker.ExecuteQuery(data, typeof(T), this);
+        public SQLiteMethodResponse Delete<T>(params object[] data) => (SQLiteMethodResponse) SQLite.Worker.ExecuteQuery(data, typeof(T), this);
 
-        public void Delete(Type type, params object[] data) => SQLite.Worker.ExecuteQuery(data, type, this);
+        public SQLiteMethodResponse Delete(Type type, params object[] data) => (SQLiteMethodResponse) SQLite.Worker.ExecuteQuery(data, type, this);
+    }
+
+    public class SQLiteMethodResponse
+    {
+        public int RowsCountAffected { get; set; } = 0;
+        public Exception Exception { get; set; } = null;
     }
 }

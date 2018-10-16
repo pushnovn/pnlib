@@ -100,7 +100,7 @@ namespace PN.Storage
         private static object StringToObject(string source, string keyToDecrypt, Type type)
         {
             if (string.IsNullOrEmpty(source))
-                return Utils.Utils.Internal.CreateDefaultObject(type, true);
+                return Utils.Internal.CreateDefaultObject(type, true);
 
             var decrypt = AES.Decrypt(source, keyToDecrypt);
             return JsonConvert.DeserializeObject(decrypt, type);
