@@ -45,10 +45,10 @@ namespace ConsoleApp1
 
             var ssqq = SQLite.Get<Value>();
 
-            ssqq.FirstOrDefault().ListV.Add("v6");
-            ssqq.FirstOrDefault().ListV.Remove("v1");
+            ssqq.FirstOrDefault().ListV.Remove("v6");
+            ssqq.FirstOrDefault().ListV.Add("v7");
 
-            SQLite.Update(ssqq.FirstOrDefault());
+            SQLite.Update(ssqq.ToArray());
 
             var ssqq2 = SQLite.Get<Value>();
 

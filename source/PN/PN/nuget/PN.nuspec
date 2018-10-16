@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Pushnovn.PN</id>
-    <version>0.1.4.7-pre-alpha</version>
+    <version>0.1.4.8-pre-alpha</version>
     <title>PN lib (Pre-Alpha)</title>
     <authors>Pushnovn</authors>
     <owners>Pushnovn</owners>
@@ -10,9 +10,8 @@
     <description>Internal PN lib</description>
     <releaseNotes>
 SQLite:
-- Added where's chain in conditions.
-- Removed old code.
-- Refactoring.
+- Added support of complex properties' types (via AES and JSON). 
+- Added support of parsing Enumerable types (as single-object types as well).
     </releaseNotes>
     <projectUrl>http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http</projectUrl>
     <copyright>Copyright 2018</copyright>

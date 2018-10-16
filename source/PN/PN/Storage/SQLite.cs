@@ -92,6 +92,10 @@ namespace PN.Storage
                 if (!CheckConnection())
                     return null;
 
+                var hren = ConvertArrayOfSingleListToArrayOfItems(data);
+
+                data = ConvertArrayOfSingleListToArrayOfItems(data);
+
                 if (commandName.Equals("Truncate") == false)
                 {
                     // Проверяем, не подсунули ли нам пустоту вместо данных для работы
@@ -143,7 +147,7 @@ namespace PN.Storage
 
                             var strWithFields = $" ({string.Join(",", props.Select(prop => GetPropertyNameInTable(prop)).ToArray()).TrimEnd(',')}) values ";
                             var strWithValues = string.Empty;
-                            foreach (var obj in data)
+                            foreach (var obj in ConvertArrayOfSingleListToArrayOfItems(data))
                             {
                                 strWithValues += '(';
                                 foreach (var prop in props)
@@ -182,7 +186,7 @@ namespace PN.Storage
                             foreach (var prop in props)
                             {
                                 groupString += GetPropertyNameInTable(prop) + " = CASE id ";
-                                foreach (var obj in data)
+                                foreach (var obj in ConvertArrayOfSingleListToArrayOfItems(data))
                                 {
                                     var value = prop.GetValue(obj, null);
                                     value = value != null && value is string ? (value as string).Replace("\'", "\'\'") : value;
@@ -219,7 +223,7 @@ namespace PN.Storage
 
                         case "DeleteOld":
                             var idsEnumForDeleteMethod = string.Empty;
-                            foreach (var obj in data)
+                            foreach (var obj in ConvertArrayOfSingleListToArrayOfItems(data))
                             {
                                 idsEnumForDeleteMethod += resultType.GetProperty("id", bindingFlags | BindingFlags.IgnoreCase).GetValue(obj, null) + ",";
                             }
@@ -259,6 +263,29 @@ namespace PN.Storage
                     return null;
                 }
             }
+
+            static object[] ConvertArrayOfSingleListToArrayOfItems(object[] data)
+            {
+                if (data == null)
+                    return null;
+
+                if (data.Count() == 0)
+                    return data;
+
+                var enumerable = (data[0] as IEnumerable) == null ? data : data[0] as IEnumerable;
+
+                if (enumerable == null)
+                    return null;
+
+                List<object> values = new List<object>();
+
+                foreach (object obj in enumerable)
+                {
+                    values.Add(obj);
+                }
+
+                return values.ToArray();
+            } 
 
             private static string CreateWherePartOfSqlRequest(WhereCondition where, List<PropertyInfo> props)
             {
