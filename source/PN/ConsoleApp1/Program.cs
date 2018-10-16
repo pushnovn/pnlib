@@ -20,6 +20,8 @@ namespace ConsoleApp1
             public int Id { get; set; }
 
             public string Valuesss { get; set; }
+
+            public List<string> ListV { get; set; }
         }
 
         [SQLite.SQLiteName("sqlite_master")]
@@ -38,6 +40,17 @@ namespace ConsoleApp1
             SQLite.PathToDB = "sqlite.db";
 
             SQLite.PathToDB = "test.db";
+
+       //     SQLite.Set(new Value() { Valuesss = "Valll1", ListV = new List<string>() { "v1", "v2", "v3" } });
+
+            var ssqq = SQLite.Get<Value>();
+
+            ssqq.FirstOrDefault().ListV.Add("v6");
+            ssqq.FirstOrDefault().ListV.Remove("v1");
+
+            SQLite.Update(ssqq.FirstOrDefault());
+
+            var ssqq2 = SQLite.Get<Value>();
 
             SQLite//.WhereAND("Title", Is.Equals, "table")
                   .Delete();

@@ -84,9 +84,7 @@ namespace PN.Storage
         internal class Worker
         {
             // Исполняем любой запрос к БД
-            internal static object ExecuteQuery(object[] data = null,
-                                                Type resultType = null,
-                                                WhereCondition where = null)
+            internal static object ExecuteQuery(object[] data = null, Type resultType = null, WhereCondition where = null)
             {
                 var commandName = GetCurrentMethodName();
 
@@ -152,6 +150,10 @@ namespace PN.Storage
                                 {
                                     var value = prop.GetValue(obj, null);
                                     value = (value != null && value is string) ? (value as string).Replace("\'", "\'\'") : value;
+                                    
+                                    if (prop.PropertyType.IsValueType == false && prop.PropertyType != typeof(string))
+                                        value = ObjectToString(value);
+                                    
                                     strWithValues += value == null ? "NULL," : $"'{value}',";
                                 }
 
@@ -186,6 +188,9 @@ namespace PN.Storage
                                     value = value != null && value is string ? (value as string).Replace("\'", "\'\'") : value;
 
                                     var id = resultType.GetProperty("id", bindingFlags | BindingFlags.IgnoreCase).GetValue(obj, null);
+                                    
+                                    if (prop.PropertyType.IsValueType == false && prop.PropertyType != typeof(string))
+                                        value = ObjectToString(value);
 
                                     groupString += $"WHEN {id} THEN " + (value == null ? "NULL " : $"'{value}' ");
 
@@ -257,6 +262,9 @@ namespace PN.Storage
 
             private static string CreateWherePartOfSqlRequest(WhereCondition where, List<PropertyInfo> props)
             {
+                if (where == null)
+                    return ";";
+
                 var commandText = string.Empty;
 
                 for (int i = 0; i < where.Conditions.Count; i++)
@@ -375,11 +383,13 @@ namespace PN.Storage
                                 var propertyNameInTable = GetPropertyNameInTable(prop);
                                 var objectFromSQLiteDataReader = sqliteDataReader[propertyNameInTable];
 
-                                prop.SetValue(resObj,
-                                    objectFromSQLiteDataReader != DBNull.Value ?
-                                    Convert.ChangeType(objectFromSQLiteDataReader, prop.PropertyType) : null, null);
+                                var objectToSetToProperty = (prop.PropertyType.IsValueType || prop.PropertyType == typeof(string)) ?
+                                    Convert.ChangeType(objectFromSQLiteDataReader, prop.PropertyType) :
+                                    StringToObject((string)objectFromSQLiteDataReader, prop.PropertyType);
+
+                                prop.SetValue(resObj, objectFromSQLiteDataReader != DBNull.Value ? objectToSetToProperty : null, null);
                             }
-                            catch
+                            catch (Exception ex)
                             {
                                 prop.SetValue(resObj, GetDefaultValue(prop.PropertyType), null);
                             }
@@ -393,6 +403,23 @@ namespace PN.Storage
                 }
             }
 
+            static object StringToObject(string source, Type type)
+            {
+                if (string.IsNullOrEmpty(source))
+                    return Utils.Utils.Internal.CreateDefaultObject(type, true);
+
+                var decrypt = Crypt.AES.Decrypt(source, "SQLite");
+                return InternalNewtonsoft.Json.JsonConvert.DeserializeObject(decrypt, type);
+            }
+
+            static string ObjectToString(object value)
+            {
+                if (value == null)
+                    return null;
+
+                var json = InternalNewtonsoft.Json.JsonConvert.SerializeObject(value);
+                return Crypt.AES.Encrypt(json, "SQLite");
+            }
 
             // Get the type of calling method
             // It's may be Get | Set | Update | Delete
@@ -543,7 +570,7 @@ namespace PN.Storage
         ///<summary>A != B</summary>
         NotEquals,
 
-        ///<summary>A==%B%</summary>
+        ///<summary>A == %B%</summary>
         Like,
 
         ///<summary>a < B < c</summary>
@@ -582,20 +609,20 @@ namespace PN.Storage
         internal enum ConditionTypes { AND, OR, }
 
         internal static Dictionary<Is, string> SimpleOperators = new Dictionary<Is, string>
+        {
             {
-                {
-                    Is.BiggerThen, ">"
-                },
-                {
-                    Is.LessThen, "<"
-                },
-                {
-                    Is.Equals, "="
-                },
-                {
-                    Is.NotEquals, "!="
-                },
-            };
+                Is.BiggerThen, ">"
+            },
+            {
+                Is.LessThen, "<"
+            },
+            {
+                Is.Equals, "="
+            },
+            {
+                Is.NotEquals, "!="
+            },
+        };
 
         internal class Condition
         {
