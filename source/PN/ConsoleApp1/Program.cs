@@ -39,7 +39,65 @@ namespace ConsoleApp1
 
             SQLite.PathToDB = "test.db";
 
-            var ppp = SQLite.GetWhere<sqlite_master>(new SQLite.WhereCondition().Add("type", SQLite.WhereCondition.Funcs.Equals, "table"));
+            SQLite//.WhereAND("Title", Is.Equals, "table")
+                  .Delete();
+
+
+
+            var nws = SQLite.WhereAND(null, Is.LimitedBy, 10)
+                            .Where("Title", Is.Equals, "table")
+                            .Where("Title", Is.LimitedBy, 20)
+                            .Where("Title", Is.Contains, "table")
+                            .Where("Title", Is.LessThen, "table")
+                            .Where("Title", Is.NotEquals, "table")
+                            .Where("Title", Is.Between, "1", "2")
+                            .Where("Title", Is.BiggerThen, "table")
+                            .Where("Title", Is.Reversed, true)
+                            .Where("Title", Is.ContainsAnythingFrom, "1", "2", "3")
+                            .Where("Title", Is.Reversed, true)
+                            .Where("Title", Is.Reversed, true)
+                            .Get<New>();
+            
+
+            var nws2 = SQLite.WhereOR(null,  Is.LimitedBy, 10)
+                             .Where("Title", Is.Equals, "table")
+                             .Where("Title", Is.LimitedBy, 20)
+                             .Where("Title", Is.Contains, "table")
+                             .Where("Title", Is.LessThen, "table")
+                             .Where("Title", Is.NotEquals, "table")
+                             .Where("Title", Is.Between, "1", "2")
+                             .Where("Title", Is.BiggerThen, "table")
+                             .Where("Title", Is.Reversed, true)
+                             .Where("Title", Is.ContainsAnythingFrom, "1", "2", "3")
+                             .Where("Title", Is.Reversed, true)
+                             .Where("Title", Is.Reversed, true)
+                             .Get<New>();
+
+
+
+            //var superWhere = new SQLite.WhereCondition()
+            //                                .Where("type", SQLite.Is.Equals, "table")
+            //                                .Where("type", SQLite.Is.Equals, "table")
+            //                                .Where("type", SQLite.Is.Equals, "table")
+            //                                .Where("type", SQLite.Is.Equals, "table")
+            //                                .Where("type", SQLite.Is.Equals, "table")
+            //                                .Where("type", SQLite.Is.Equals, "table")
+            //                                .Where("type", SQLite.Is.Equals, "table");
+
+        //    var ppp = SQLite.GetWhere<sqlite_master>(superWhere);
+
+
+
+
+            //var ttd = SQLite.Where("type", SQLite.Is.Equals, "table")
+            //                .Where("type", SQLite.Is.Contains, "table")
+            //                .Where("type", SQLite.Is.LessThen, "table")
+            //                .Where("type", SQLite.Is.NotEquals, "table")
+            //                .Where("type", SQLite.Is.Between, "table")
+            //                .Where("type", SQLite.Is.BiggerThen, "table")
+            //                .Where("type", SQLite.Is.In, "table")
+            //                .Get<New>();
+
 
 
             SQLite.ExecuteString("SELECT * FROM sqlite_master WHERE type='table';");
@@ -496,8 +554,7 @@ namespace ConsoleApp1
 
 
 
-
-
+    
 
     [Url("http://projects.pushnovn.com/")]
     class API : HTTP

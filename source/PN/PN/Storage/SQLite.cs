@@ -11,34 +11,20 @@ namespace PN.Storage
 {
     public class SQLite
     {
-        public static IList Get(Type type, params object[] data)
+        public static IList Get(Type type)
         {
-            return (IList)Worker.ExecuteQuery(data, type);
+            return (IList) Worker.ExecuteQuery(null, type);
         }
 
-        public static List<T> Get<T>(params object[] data)
+        public static List<T> Get<T>()
         {
-            return (List<T>)Worker.ExecuteQuery(data, typeof(T));
+            return (List<T>)Worker.ExecuteQuery(null, typeof(T));
         }
 
-        public static List<T> GetSpecial<T>(long lastId,
-                                            int count,
-                                            List<string> subStrings = null,
-                                            bool getElemsBefore = false)
+        public static int GetCount<T>()
         {
-            return (List<T>)Worker.ExecuteQuery(null, typeof(T), (int)lastId, count, subStrings, getElemsBefore);
+            return (int)Worker.ExecuteQuery(null, typeof(T));
         }
-
-        public static int GetCount<T>(List<string> subStrings = null, int lastId = -1)
-        {
-            return (int)Worker.ExecuteQuery(null, typeof(T), lastId, -1, subStrings);
-        }
-
-        public static List<T> GetWhere<T>(WhereCondition where)
-        {
-            return (List<T>)Worker.ExecuteQuery(null, typeof(T), -1, -1, null, false, where);
-        }
-
 
         public static object Set(params object[] data)
         {
@@ -65,93 +51,41 @@ namespace PN.Storage
             Worker.ExecuteQuery(data, null);
         }
 
+
         public static string PathToDB { get; set; }
 
-        public class WhereCondition
+
+        public static WhereCondition WhereAND(string propertyName, Is operation, params object[] parameters)
         {
-            public enum Funcs
+            return WherePrivate(WhereCondition.ConditionTypes.AND, propertyName, operation, parameters);
+        }
+        public static WhereCondition WhereOR(string propertyName, Is operation, params object[] parameters)
+        {
+            return WherePrivate(WhereCondition.ConditionTypes.OR, propertyName, operation, parameters);
+        }
+        private static WhereCondition WherePrivate(WhereCondition.ConditionTypes condType, string propertyName, Is operation, params object[] parameters)
+        {
+            return new WhereCondition()
             {
-                ///<summary>A > B</summary>
-                BiggerThen,
-
-                ///<summary>A < B</summary>
-                LessThen,
-
-                ///<summary>A == B</summary>
-                Equals,
-
-                ///<summary>A != B</summary>
-                NotEquals,
-
-                ///<summary>A==%B%</summary>
-                Like,
-
-                ///<summary>a < B < c</summary>
-                Between,
-
-                ///<summary>A.Contains('123')</summary>
-                Contains,
-
-                ///<summary>.....</summary>
-                In,
-            }
-
-            public enum ConditionTypes
-            {
-                And,
-                Or,
-            }
-
-            public static Dictionary<Funcs, string> SimpleOperators = new Dictionary<Funcs, string>
-            {
+                Conditions = new List<WhereCondition.Condition>()
                 {
-                    Funcs.BiggerThen, ">"
+                    new WhereCondition.Condition
+                    {
+                        PropertyName = propertyName,
+                        Operation = operation,
+                        Parameters = parameters,
+                    },
                 },
-                {
-                    Funcs.LessThen, "<"
-                },
-                {
-                    Funcs.Equals, "="
-                },
-                {
-                    Funcs.NotEquals, "!="
-                },
+                ConditionType = condType,
             };
-
-            public class Condition
-            {
-                internal string PropertyName;
-                internal Funcs Operation;
-                internal object[] Parameters;
-            }
-
-            public List<Condition> Conditions = new List<Condition>();
-            public long Limit = -1;
-            public bool Reverse = false;
-            public ConditionTypes ConditionType = ConditionTypes.And;
-
-            public WhereCondition Add(string propertyName, Funcs operation, params object[] parameters)
-            {
-                Conditions.Add(new Condition
-                {
-                    PropertyName = propertyName,
-                    Operation = operation,
-                    Parameters = parameters,
-                });
-
-                return this;
-            }
         }
 
-        class Worker
+
+        internal class Worker
         {
             // Исполняем любой запрос к БД
             internal static object ExecuteQuery(object[] data = null,
                                                 Type resultType = null,
-                                                long lastId = -1,
-                                                int count = -1,
-                                                List<string> subStrings = null,
-                                                bool getElemsBefore = false,
                                                 WhereCondition where = null)
             {
                 var commandName = GetCurrentMethodName();
@@ -163,12 +97,15 @@ namespace PN.Storage
                 if (commandName.Equals("Truncate") == false)
                 {
                     // Проверяем, не подсунули ли нам пустоту вместо данных для работы
-                    if ((!commandName.Contains("Get")) && ((data == null) || (data.Count() < 1)))
+                    if ((commandName.Contains("Get") == false && commandName.Contains("Delete") == false) && ((data == null) || (data.Count() < 1)))
                         return null;
 
                     if ((data ?? new object[0]).Any(d => d == null))
                         return null;
                 }
+
+                if (resultType == null && (data ?? new object[0]).Count() == 0)
+                    return null;
 
                 resultType = resultType ?? data[0].GetType();
                 var tableName = '"' + (resultType.GetCustomAttribute<SQLiteNameAttribute>()?.Name ?? resultType.Name + "s") + '"';
@@ -177,159 +114,24 @@ namespace PN.Storage
                 // Открываем соединение к БД (после запроса автоматом закроем его)
                 using (SQLiteConnection conn = GetConnection())
                 {
-                    // Получаем список полей типа, который должны вернуть
-                    // var fieldNames = resultType.GetProperties(bindingFlags).Select(field => field.Name).ToList();
-
                     conn.Open();
                     var command = conn.CreateCommand();
 
                     switch (commandName)
                     {
-                        #region GetCount method implementation
+                        #region Get/GetCount method implementation
+
+                        case "Get":
+                            command.CommandText = $"SELECT * FROM {tableName} {CreateWherePartOfSqlRequest(where, props)}";
+                            return GetResultsFromDB(command, resultType, props);
 
                         case "GetCount":
-                            command.CommandText = $"SELECT COUNT(*) FROM {tableName}";
-
-                            if (subStrings != null)
-                            {
-                                command.CommandText += " WHERE (";
-
-                                foreach (var prop in props)
-                                    foreach (var subStr in subStrings)
-                                        command.CommandText += $" {GetPropertyNameInTable(prop)} LIKE '%{subStr}%' OR";
-
-                                command.CommandText = command.CommandText.Trim().Substring(0, command.CommandText.Length - 2) + ") ";
-                            }
-
-                            if (lastId > -1)
-                                command.CommandText += $" {(subStrings != null ? " AND " : " WHERE ")}  (id > {lastId})";
-
-                            command.CommandText += ";";
-
+                            command.CommandText = $"SELECT COUNT(*) FROM {tableName} {CreateWherePartOfSqlRequest(where, props)}";
                             using (SQLiteDataReader sqliteDataReader = command.ExecuteReader())
                             {
                                 sqliteDataReader.Read();
-
                                 return sqliteDataReader.GetInt32(0);
                             }
-
-                        #endregion
-
-                        #region Get & GetSpecial method implementation
-
-                        case "Get":
-                        case "GetSpecial":
-                            command.CommandText = $"SELECT * FROM {tableName}";
-
-                            if (subStrings != null)
-                            {
-                                command.CommandText += " WHERE (";
-
-                                foreach (var prop in props)
-                                    foreach (var subStr in subStrings)
-                                        command.CommandText += $" {GetPropertyNameInTable(prop)} LIKE '%{subStr}%' OR";
-
-                                command.CommandText = command.CommandText.Trim().Substring(0, command.CommandText.Length - 2) + ") ";
-                            }
-
-                            if (lastId > -1)
-                                command.CommandText += $" {(subStrings != null ? " AND " : " WHERE ")} (id {(getElemsBefore ? "<" : ">")}  {lastId})";
-
-                            if (getElemsBefore)
-                                command.CommandText += " ORDER BY id DESC ";
-
-                            command.CommandText += count > -1 ? $" LIMIT {count};" : ";";
-                            
-                            return GetResultsFromDB(command, resultType, props);
-
-                        #endregion
-
-                        #region GetWhere method implementation
-
-                        case "GetWhere":
-                            command.CommandText = $"SELECT * FROM {tableName}";
-
-                            for (int i = 0; i < where.Conditions.Count; i++)
-                            {
-                                var condition = where.Conditions[i];
-
-                                if (condition.Parameters.Length < 1)
-                                    continue;
-
-                                command.CommandText += i == 0 ? " WHERE (" : string.Empty;
-                                var quote = condition.Parameters[0] is string ? "'" : string.Empty;
-                                switch (condition.Operation)
-                                {
-                                    case WhereCondition.Funcs.BiggerThen:
-                                    case WhereCondition.Funcs.LessThen:
-                                    case WhereCondition.Funcs.Equals:
-                                    case WhereCondition.Funcs.NotEquals:
-                                        if (condition.Parameters.Length > 0)
-                                            command.CommandText += $"{condition.PropertyName} " +
-                                                                   WhereCondition.SimpleOperators[condition.Operation] +
-                                                                   $" {quote}{condition.Parameters[0]}{quote}";
-                                        break;
-
-                                    case WhereCondition.Funcs.Like:
-                                        if (condition.Parameters.Length > 0)
-                                            command.CommandText += $"{condition.PropertyName} LIKE " +
-                                                                   $"{quote}%{condition.Parameters[0]}%{quote}";
-                                        break;
-
-                                    case WhereCondition.Funcs.Between:
-                                        if (condition.Parameters.Length > 1)
-                                            command.CommandText += $"{condition.PropertyName} BETWEEN " +
-                                                                   $"{condition.Parameters[0]} AND {condition.Parameters[1]}";
-                                        break;
-
-                                    case WhereCondition.Funcs.In:
-                                        if (condition.Parameters.Length > 0)
-                                        {
-                                            command.CommandText += $"{condition.PropertyName} IN (";
-                                            var qut = condition.Parameters[0] is List<string> ? "'" : string.Empty;
-                                            foreach (var arrItem in condition.Parameters[0] as IList)
-                                                command.CommandText += $"{qut}{arrItem}{qut},";
-                                            command.CommandText = command.CommandText.TrimEnd(',') + ")";
-                                        }
-
-                                        break;
-
-                                    case WhereCondition.Funcs.Contains:
-                                        if (string.IsNullOrEmpty(condition.PropertyName))
-                                            foreach (var prop in props)
-                                                foreach (var subStr in condition.Parameters)
-                                                    command.CommandText += " " + GetPropertyNameInTable(prop) + " LIKE '%" + subStr + "%' OR";
-                                        else
-                                            foreach (var arrItem in (condition.Parameters[0] is IList)
-                                                    ? condition.Parameters[0] as IList
-                                                    : condition.Parameters)
-                                                command.CommandText +=
-                                                        " " + condition.PropertyName + " LIKE '%" + arrItem + "%' OR";
-
-
-                                        if (command.CommandText.Trim().EndsWith("OR"))
-                                            command.CommandText = command
-                                                                  .CommandText.Trim()
-                                                                  .Substring(0, command.CommandText.Length - 2);
-                                        break;
-                                }
-
-                                command.CommandText += $") {where.ConditionType} (";
-                            }
-
-                            if (where.Conditions.Count != 0)
-                                command.CommandText = command
-                                                      .CommandText.Trim()
-                                                      .Substring(0,
-                                                                 command.CommandText.Length -
-                                                                 $" {where.ConditionType} (".Length);
-
-                            if (where.Reverse)
-                                command.CommandText += " ORDER BY id DESC ";
-
-                            command.CommandText += where.Limit > -1 ? $" LIMIT {where.Limit};" : ";";
-
-                            return GetResultsFromDB(command, resultType, props);
 
                         #endregion
 
@@ -405,6 +207,12 @@ namespace PN.Storage
                         #region Delete method implementation
 
                         case "Delete":
+                            command.CommandText = $"DELETE FROM {tableName} {CreateWherePartOfSqlRequest(where, props)}";
+
+                            command.ExecuteNonQuery();
+                            break;
+
+                        case "DeleteOld":
                             var idsEnumForDeleteMethod = string.Empty;
                             foreach (var obj in data)
                             {
@@ -413,11 +221,10 @@ namespace PN.Storage
 
                             idsEnumForDeleteMethod = idsEnumForDeleteMethod.TrimEnd(',');
 
-                            command.CommandText = string.Format("DELETE FROM {0} WHERE id IN ({1});",
-                                                                resultType.Name + 's', idsEnumForDeleteMethod);
+                            command.CommandText = $"DELETE FROM {tableName} WHERE id IN ({idsEnumForDeleteMethod});";
+
                             command.ExecuteNonQuery();
                             break;
-
                         #endregion
 
                         #region Truncate method implementation
@@ -425,7 +232,7 @@ namespace PN.Storage
                         case "Truncate":
                             //   TRUNCATE[TABLE] tbl_name
                             // command.CommandText = String.Format("SELECT * FROM {0};", resultType.Name + 's');
-                            command.CommandText = string.Format($"DELETE FROM {resultType.Name + 's'}");
+                            command.CommandText = string.Format($"DELETE FROM {tableName}");
 
                             command.ExecuteNonQuery();
                             break;
@@ -446,6 +253,102 @@ namespace PN.Storage
 
                     return null;
                 }
+            }
+
+            private static string CreateWherePartOfSqlRequest(WhereCondition where, List<PropertyInfo> props)
+            {
+                var commandText = string.Empty;
+
+                for (int i = 0; i < where.Conditions.Count; i++)
+                {
+                    var condition = where.Conditions[i];
+
+                    if (condition.Parameters.Length < 1)
+                        continue;
+
+                    commandText += i == 0 ? " WHERE (" : string.Empty;
+
+                    var quote = condition.Parameters[0] is string ? "'" : string.Empty;
+                    switch (condition.Operation)
+                    {
+                        case Is.BiggerThen:
+                        case Is.LessThen:
+                        case Is.Equals:
+                        case Is.NotEquals:
+                            if (condition.Parameters.Length > 0)
+                                commandText += $"{condition.PropertyName} " +
+                                                WhereCondition.SimpleOperators[condition.Operation] +
+                                               $" {quote}{condition.Parameters[0]}{quote}";
+                            break;
+
+                        case Is.Like:
+                            if (condition.Parameters.Length > 0)
+                                commandText += $"{condition.PropertyName} LIKE {quote}%{condition.Parameters[0]}%{quote}";
+                            break;
+
+                        case Is.Between:
+                            if (condition.Parameters.Length > 1)
+                                commandText += $"{condition.PropertyName} BETWEEN {condition.Parameters[0]} AND {condition.Parameters[1]}";
+                            break;
+
+                        case Is.In:
+                            if (condition.Parameters.Length > 0)
+                            {
+                                commandText += $"{condition.PropertyName} IN (";
+                                var qut = condition.Parameters[0] is List<string> ? "'" : string.Empty;
+                                foreach (var arrItem in condition.Parameters[0] as IList)
+                                    commandText += $"{qut}{arrItem}{qut},";
+                                commandText = commandText.TrimEnd(',') + ")";
+                            }
+
+                            break;
+
+                        case Is.Contains:
+                            if (string.IsNullOrEmpty(condition.PropertyName))
+                                foreach (var prop in props)
+                                    foreach (var subStr in condition.Parameters)
+                                        commandText += " " + GetPropertyNameInTable(prop) + " LIKE '%" + subStr + "%' OR";
+                            else
+                                foreach (var arrItem in (condition.Parameters[0] is IList)
+                                        ? condition.Parameters[0] as IList
+                                        : condition.Parameters)
+                                    commandText += " " + condition.PropertyName + " LIKE '%" + arrItem + "%' OR";
+
+                            if (commandText.Trim().EndsWith("OR"))
+                                commandText = commandText.Trim().Remove(commandText.Length - 3);
+                            break;
+
+                        case Is.ContainsAnythingFrom:
+                            foreach (var prop in props)
+                                foreach (var subStr in condition.Parameters)
+                                    commandText += $" {GetPropertyNameInTable(prop)} LIKE '%{subStr}%' OR";
+
+                            if (commandText.Trim().EndsWith("OR"))
+                                commandText = commandText.Trim().Remove(commandText.Length - 3);
+                            break;
+
+                        case Is.LimitedBy:
+                            where.Limit = (int)condition.Parameters[0];
+                            break;
+
+                        case Is.Reversed:
+                            where.Reverse = (bool)condition.Parameters[0];
+                            break;
+                    }
+
+                    if (condition.Operation != Is.Reversed && condition.Operation != Is.LimitedBy)
+                        commandText += $") {where.ConditionType} (";
+                }
+
+                if (where.Conditions.Count != 0)
+                    commandText = commandText.Trim().Substring(0, commandText.Length - $" {where.ConditionType} (".Length);
+
+                if (where.Reverse)
+                    commandText += " ORDER BY id DESC";
+
+                commandText += where.Limit > -1 ? $" LIMIT {where.Limit};" : ";";
+
+                return commandText;
             }
 
             private static BindingFlags bindingFlags = BindingFlags.Public | BindingFlags.NonPublic |
@@ -624,5 +527,96 @@ namespace PN.Storage
         
         #endregion
 
+    }
+
+    public enum Is
+    {
+        ///<summary>A > B</summary>
+        BiggerThen,
+
+        ///<summary>A < B</summary>
+        LessThen,
+
+        ///<summary>A == B</summary>
+        Equals,
+
+        ///<summary>A != B</summary>
+        NotEquals,
+
+        ///<summary>A==%B%</summary>
+        Like,
+
+        ///<summary>a < B < c</summary>
+        Between,
+
+        ///<summary>A.Contains('123')</summary>
+        Contains,
+
+        ///<summary>A.Contains('123') or A.Contains('456') or ...</summary>
+        ContainsAnythingFrom,
+
+        ///<summary>.....</summary>
+        In,
+
+        ///<summary>Get only N last results (N as parameter)</summary>
+        LimitedBy,
+
+        ///<summary>Get bool type as parameter</summary>
+        Reversed,
+    }
+    
+    public class WhereCondition
+    {
+        public WhereCondition Where(string propertyName, Is operation, params object[] parameters)
+        {
+            Conditions.Add(new Condition
+            {
+                PropertyName = propertyName,
+                Operation = operation,
+                Parameters = parameters,
+            });
+
+            return this;
+        }
+
+        internal enum ConditionTypes { AND, OR, }
+
+        internal static Dictionary<Is, string> SimpleOperators = new Dictionary<Is, string>
+            {
+                {
+                    Is.BiggerThen, ">"
+                },
+                {
+                    Is.LessThen, "<"
+                },
+                {
+                    Is.Equals, "="
+                },
+                {
+                    Is.NotEquals, "!="
+                },
+            };
+
+        internal class Condition
+        {
+            internal string PropertyName;
+            internal Is Operation;
+            internal object[] Parameters;
+        }
+
+        internal List<Condition> Conditions = new List<Condition>();
+        internal long Limit = -1;
+        internal bool Reverse = false;
+        internal ConditionTypes ConditionType = ConditionTypes.AND;
+
+        public List<T> Get<T>() => (List<T>) SQLite.Worker.ExecuteQuery(null, typeof(T), this);
+
+        public IList Get(Type type) => (IList)SQLite.Worker.ExecuteQuery(null, type, this);
+
+        public int GetCount<T>() => (int) SQLite.Worker.ExecuteQuery(null, typeof(T), this);
+
+        public void Delete<T>(params object[] data) => SQLite.Worker.ExecuteQuery(data, typeof(T), this);
+
+        public void Delete(Type type, params object[] data) => SQLite.Worker.ExecuteQuery(data, type, this);
     }
 }
