@@ -1,5 +1,6 @@
 using Xunit;
 using System;
+using System.Collections.Generic;
 using PN.Storage;
 
 // ReSharper disable UnusedMember.Local
@@ -18,7 +19,18 @@ namespace Pn.TestsCore
             SQLite.PathToDB = TestDb;
             var a = SQLite.Set(new Message
             {
-                Text = Guid.NewGuid().ToString()
+                Text = Guid.NewGuid().ToString(),
+                Attaches = new List<Attach>
+                {
+                    new Attach
+                    {
+                        FileName = Guid.NewGuid().ToString(), UploadDt = DateTime.UtcNow.AddDays(1)
+                    },
+                    new Attach
+                    {
+                        FileName = Guid.NewGuid().ToString(), UploadDt = DateTime.UtcNow.AddDays(2)
+                    }
+                }
             });
 
             Assert.Null(a);
@@ -86,6 +98,15 @@ namespace Pn.TestsCore
 
             [SQLite.SQLiteName("MessageText")]
             public string Text { get; set; }
+
+            public List<Attach> Attaches { get; set; }
+        }
+
+        private class Attach
+        {
+            public string FileName { get; set; }
+
+            public DateTime UploadDt { get; set; }
         }
     }
 }
