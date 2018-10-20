@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 /// <summary>
@@ -86,7 +87,7 @@ namespace PN.Utils
         }
 
         /// <summary>
-        /// Get dll from <paramref name="resourceName"/> and copy it to disk py filename path.
+        /// Get dll from <paramref name="resourceName"/> and copy it to disk by filename path.
         /// </summary>
         internal static void WriteResourceToFile(string resourceName, string fileName)
         {
@@ -94,10 +95,16 @@ namespace PN.Utils
             {
                 using (var file = new FileStream(fileName, FileMode.Create, FileAccess.Write))
                 {
-                    resource.CopyTo(file);
+                    resource?.CopyTo(file);
                 }
             }
         }
+
+        /// <summary>
+        /// Returns all avaliable in dll resource's names.
+        /// </summary>
+        internal static List<string> ManifestResourceNames 
+            => System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceNames().ToList();
 
 
         internal static PlatformID CurrentPlatform => Environment.OSVersion.Platform;

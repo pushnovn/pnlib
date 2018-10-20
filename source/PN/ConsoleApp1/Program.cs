@@ -36,7 +36,7 @@ namespace ConsoleApp1
 
             SQLite.PathToDB = "test.db";
 
-
+            PN.Network.IBM.MQ.ExtractDll();
 
             var tables = SQLite.Tables;
 
