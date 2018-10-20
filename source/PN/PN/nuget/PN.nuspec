@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Pushnovn.PN</id>
-    <version>0.1.5-pre-alpha</version>
+    <version>0.1.5.1-pre-alpha</version>
     <title>PN lib (Pre-Alpha)</title>
     <authors>Pushnovn</authors>
     <owners>Pushnovn</owners>
@@ -10,12 +10,11 @@
     <description>Internal PN lib</description>
     <releaseNotes>
 SQLite:
-- Added ability to delete 'objects' without Where.
-- Added auto-conversion of lists, arrays etc to one single array in different methods (now you may pass any ienumerables).
-- Removed auto-coping of dlls.
-- Reduced dll's size.
-- Added ability to get Exception in all methods.
-- Refactoring.
+- Added Generic ExecuteString methods.
+- Added property 'Tables'.
+- Little fixes.
+Text:
+- Added new search fuzzy method.
     </releaseNotes>
     <projectUrl>http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http</projectUrl>
     <copyright>Copyright 2018</copyright>

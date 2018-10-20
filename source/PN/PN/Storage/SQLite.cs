@@ -46,11 +46,37 @@ namespace PN.Storage
             return (SQLiteMethodResponse) Worker.ExecuteQuery(data, typeof(T));
         }
 
-        public static SQLiteMethodResponse ExecuteString(params object[] data)
+
+        public static SQLiteMethodResponse ExecuteString(string str)
         {
-            return (SQLiteMethodResponse) Worker.ExecuteQuery(data);
+            return (SQLiteMethodResponse) Worker.ExecuteQuery(new object[] { str });
         }
+        public static List<T> ExecuteString<T>(string str)
+        {
+            return (List<T>) Worker.ExecuteQuery(new object[] { str }, typeof(T));
+        }
+        public static IList ExecuteString(string str, Type returnType)
+        {
+            return (IList) Worker.ExecuteQuery(new object[] { str }, returnType);
+        }
+
+        #region Table's list
         
+        [SQLiteName("sqlite_master")]
+        public class sqlite_master
+        {
+            public string type { get; set; }
+            public string name { get; set; }
+            public string tbl_name { get; set; }
+            public string rootpage { get; set; }
+            public string sql { get; set; }
+        }
+
+        public static List<sqlite_master> Tables => WhereAND("type", Is.Equals, "table").Get<sqlite_master>();
+
+        #endregion
+
+
 
         public static string PathToDB { get; set; }
 
@@ -107,8 +133,8 @@ namespace PN.Storage
 
                 resultType = resultType ?? data[0].GetType();
                 var tableName = '"' + (resultType.GetCustomAttribute<SQLiteNameAttribute>()?.Name ?? resultType.Name + "s") + '"';
-                var props = resultType.GetProperties(bindingFlags).Where(prop => prop.GetCustomAttribute<SQLiteIgnoreAttribute>() == null).ToList();
-                
+                var props = GetSQLitePropertiesFromType(resultType);
+
                 // Открываем соединение к БД (после запроса автоматом закроем его)
                 using (SQLiteConnection conn = GetConnection())
                 {
@@ -267,10 +293,12 @@ namespace PN.Storage
 
                             foreach (var chr in data)
                                 command.CommandText = (command.CommandText ?? String.Empty) + chr.ToString();
-                            
-                            return ExecuteNonQueryWithResponse(command);
 
-                            #endregion
+                            if (resultType == typeof(string))
+                                return ExecuteNonQueryWithResponse(command);
+                            else
+                                return GetResultsFromDB(command, resultType, GetSQLitePropertiesFromType(resultType));
+                        #endregion
                     }
 
                     return NewSQLiteResponse(new ArgumentException($"Command '{commandName}' not found."));
@@ -393,7 +421,12 @@ namespace PN.Storage
                                                        BindingFlags.Static | BindingFlags.Instance |
                                                        BindingFlags.DeclaredOnly;
 
-            static IList GetResultsFromDB(SQLiteCommand command, Type resultType, List<PropertyInfo> props)
+            static List<PropertyInfo> GetSQLitePropertiesFromType(Type resultType)
+            {
+                return resultType.GetProperties(bindingFlags).Where(prop => prop.GetCustomAttribute<SQLiteIgnoreAttribute>() == null).ToList();
+            }
+
+            static IList GetResultsFromDB(SQLiteCommand command, Type resultType, List<PropertyInfo> props = null)
             {
                 try
                 {
@@ -407,7 +440,7 @@ namespace PN.Storage
                             // Для каждой строки создаём свой объект нужного нам типа
                             var resObj = Activator.CreateInstance(resultType);
 
-                            foreach (var prop in props)
+                            foreach (var prop in props ?? GetSQLitePropertiesFromType(resultType))
                             {
                                 //Заносим значения ячеек в наш новый объект
                                 try

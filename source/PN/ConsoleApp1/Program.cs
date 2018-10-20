@@ -23,18 +23,7 @@ namespace ConsoleApp1
 
             public List<string> ListV { get; set; }
         }
-
-        [SQLite.SQLiteName("sqlite_master")]
-        class sqlite_master
-        {
-            public string type { get; set; }
-            public string name { get; set; }
-            public string tbl_name { get; set; }
-            public string rootpage { get; set; }
-            public string sql { get; set; }
-        }
-
-
+        
         static void Main(string[] args)
         {
             var search = new PN.Search.Distance();
@@ -42,21 +31,20 @@ namespace ConsoleApp1
             var tttp = search.Search("1");
 
 
-
-
-
-
-
-
-
-
-
+            
             SQLite.PathToDB = "sqlite.db";
 
             SQLite.PathToDB = "test.db";
 
 
-            var test_exec = SQLite.ExecuteString("SELECT * FROM Value;");
+
+            var tables = SQLite.Tables;
+
+
+
+
+            var test_exec1 = SQLite.ExecuteString<Value>("SELECT * FROM Value;");
+            var test_exec2 = SQLite.ExecuteString("SELECT * FROM Value;", typeof(Value));
 
             var vall = new Value() { Valuesss = "TEST_Vall_SOLO", ListV = new List<string>() { "v1", "v2", "v3" } };
 
