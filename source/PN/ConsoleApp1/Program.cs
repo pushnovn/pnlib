@@ -37,15 +37,48 @@ namespace ConsoleApp1
 
         static void Main(string[] args)
         {
+            var search = new PN.Search.Distance();
+
+            var tttp = search.Search("1");
+
+
+
+
+
+
+
+
+
+
+
             SQLite.PathToDB = "sqlite.db";
 
             SQLite.PathToDB = "test.db";
 
-            var test = SQLite.Set(
+
+            var test_exec = SQLite.ExecuteString("SELECT * FROM Value;");
+
+            var vall = new Value() { Valuesss = "TEST_Vall_SOLO", ListV = new List<string>() { "v1", "v2", "v3" } };
+
+            var lsst = new List<Value>()
+            {
+                new Value() { Valuesss = "TEST_Valll1", ListV = new List<string>() { "v1", "v2", "v3" } },
+                new Value() { Valuesss = "TEST_Valll2", ListV = new List<string>() { "v1", "v2", "v3" } },
+                new Value() { Valuesss = "TEST_Valll3", ListV = new List<string>() { "v1", "v2", "v3" } },
+                new Value() { Valuesss = "TEST_Valll4", ListV = new List<string>() { "v1", "v2", "v3" } },
+            };
+
+            //      var test = SQLite.WhereAND(nameof(Value.Id), Is.In, new List<int>() { 0, 1, 2, 3 }, 4).Delete<Value>(lsst, 2, vall,3,4, lsst, 5, vall, 6);
+
+            var test = SQLite
+           //     .WhereAND(nameof(Value.Id), Is.In, new List<int>() { 0, 1, 2, 3 }, 4)
+                .Delete(lsst, 2, vall,3,4, lsst, 5, vall, 6);
+
+            var test2 = SQLite.Delete(
                 new Value() { Valuesss = "Valll1", ListV = new List<string>() { "v1", "v2", "v3" } },
-                new Value() { Valuesss = "Valll1", ListV = new List<string>() { "v1", "v2", "v3" } },
-                new Value() { Valuesss = "Valll1", ListV = new List<string>() { "v1", "v2", "v3" } },
-                new Value() { Valuesss = "Valll1", ListV = new List<string>() { "v1", "v2", "v3" } });
+                new Value() { Valuesss = "Valll2", ListV = new List<string>() { "v1", "v2", "v3" } },
+                new Value() { Valuesss = "Valll3", ListV = new List<string>() { "v1", "v2", "v3" } },
+                new Value() { Valuesss = "Valll4", ListV = new List<string>() { "v1", "v2", "v3" } });
 
             var ssqqCOUNT = SQLite.GetCount<Value>();
             var ssqq = SQLite.Get<Value>();

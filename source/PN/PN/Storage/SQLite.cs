@@ -1,11 +1,11 @@
 ﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Data.SQLite;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Data.SQLite;
+using System.Diagnostics;
+using System.Collections;
+using System.Collections.Generic;
 
 namespace PN.Storage
 {
@@ -46,13 +46,15 @@ namespace PN.Storage
             return (SQLiteMethodResponse) Worker.ExecuteQuery(data, typeof(T));
         }
 
-        public static void ExecuteString(params object[] data)
+        public static SQLiteMethodResponse ExecuteString(params object[] data)
         {
-            Worker.ExecuteQuery(data, null);
+            return (SQLiteMethodResponse) Worker.ExecuteQuery(data);
         }
-
+        
 
         public static string PathToDB { get; set; }
+
+        public static Exception LastQueryException;
 
 
         public static WhereCondition WhereAND(string propertyName, Is operation, params object[] parameters)
@@ -80,7 +82,6 @@ namespace PN.Storage
             };
         }
         
-        public static Exception LastQueryException;
 
         internal class Worker
         {
@@ -88,25 +89,21 @@ namespace PN.Storage
             internal static object ExecuteQuery(object[] data = null, Type resultType = null, WhereCondition where = null)
             {
                 var commandName = GetCurrentMethodName();
-
-                // Проверяем по сути пароль
-                if (!CheckConnection())
-                    return null;
-                
-                data = ConvertArrayWithSingleListToArrayOfItems(data);
+                                
+                data = Utils.Converters.ConvertArrayWithSingleListToArrayOfItems(data);
 
                 if (commandName.Equals("Truncate") == false)
                 {
                     // Проверяем, не подсунули ли нам пустоту вместо данных для работы
                     if ((commandName.Contains("Get") == false && commandName.Contains("Delete") == false) && ((data == null) || (data.Count() < 1)))
-                        return null;
+                        return NewSQLiteResponse();
 
                     if ((data ?? new object[0]).Any(d => d == null))
-                        return null;
+                        return NewSQLiteResponse(new NullReferenceException("Data array contains null object."));
                 }
 
                 if (resultType == null && (data ?? new object[0]).Count() == 0)
-                    return null;
+                    return NewSQLiteResponse(new NullReferenceException($"Command '{commandName}' cannot be called with empty or nullable data array."));
 
                 resultType = resultType ?? data[0].GetType();
                 var tableName = '"' + (resultType.GetCustomAttribute<SQLiteNameAttribute>()?.Name ?? resultType.Name + "s") + '"';
@@ -154,7 +151,7 @@ namespace PN.Storage
 
                             var strWithFields = $" ({string.Join(",", props.Select(prop => GetPropertyNameInTable(prop)).ToArray()).TrimEnd(',')}) values ";
                             var strWithValues = string.Empty;
-                            foreach (var obj in ConvertArrayWithSingleListToArrayOfItems(data))
+                            foreach (var obj in Utils.Converters.ConvertArrayWithSingleListToArrayOfItems(data))
                             {
                                 strWithValues += '(';
                                 foreach (var prop in props)
@@ -163,7 +160,7 @@ namespace PN.Storage
                                     value = (value != null && value is string) ? (value as string).Replace("\'", "\'\'") : value;
                                     
                                     if (prop.PropertyType.IsValueType == false && prop.PropertyType != typeof(string))
-                                        value = ObjectToString(value);
+                                        value = Utils.Converters.ObjectToString(value);
                                     
                                     strWithValues += value == null ? "NULL," : $"'{value}',";
                                 }
@@ -190,7 +187,7 @@ namespace PN.Storage
                             foreach (var prop in props)
                             {
                                 groupString += GetPropertyNameInTable(prop) + " = CASE id ";
-                                foreach (var obj in ConvertArrayWithSingleListToArrayOfItems(data))
+                                foreach (var obj in Utils.Converters.ConvertArrayWithSingleListToArrayOfItems(data))
                                 {
                                     var value = prop.GetValue(obj, null);
                                     value = value != null && value is string ? (value as string).Replace("\'", "\'\'") : value;
@@ -198,7 +195,7 @@ namespace PN.Storage
                                     var id = resultType.GetProperty("id", bindingFlags | BindingFlags.IgnoreCase).GetValue(obj, null);
                                     
                                     if (prop.PropertyType.IsValueType == false && prop.PropertyType != typeof(string))
-                                        value = ObjectToString(value);
+                                        value = Utils.Converters.ObjectToString(value);
 
                                     groupString += $"WHEN {id} THEN " + (value == null ? "NULL " : $"'{value}' ");
 
@@ -220,10 +217,37 @@ namespace PN.Storage
 
                         case "Delete":
 
+                            if (where == null)
+                            {
+                                if (data.Count() == 0)
+                                {
+                                    return NewSQLiteResponse();
+                                }
+
+                                var idCaseSensitiveProperty = props.FirstOrDefault(pr => pr.Name.ToLower() == "id");
+                                if (idCaseSensitiveProperty == null)
+                                {
+                                    return NewSQLiteResponse(new Exception(
+                                        "Some objects to delete have no 'id' property. " +
+                                        "Or, maybe, the first object passed to the SQLite.Delete(...) is 'id', " +
+                                        "but we cannot recognize table name, if the first object's type " +
+                                        "is not the required model's type (or any IEnumerable<ModelType>)."));
+                                }
+
+                                var ids = new List<object>();
+
+                                foreach (var dat in data)
+                                {
+                                    ids.Add(dat.GetType().IsValueType ? dat : idCaseSensitiveProperty.GetValue(dat));
+                                }
+
+                                where = new WhereCondition().Where(idCaseSensitiveProperty.Name, Is.In, ids);
+                            }
+
                             command.CommandText = $"DELETE FROM {tableName} {CreateWherePartOfSqlRequest(where, props)}";
 
                             return ExecuteNonQueryWithResponse(command);
-
+                            
                         #endregion
 
                         #region Truncate method implementation
@@ -240,16 +264,16 @@ namespace PN.Storage
                         #region ExecuteQuery method implementation
 
                         case "ExecuteString":
-                            
-                            command.CommandText = data[0].ToString();
 
-                            command.ExecuteNonQuery();
-                            break;
+                            foreach (var chr in data)
+                                command.CommandText = (command.CommandText ?? String.Empty) + chr.ToString();
+                            
+                            return ExecuteNonQueryWithResponse(command);
 
                             #endregion
                     }
 
-                    return null;
+                    return NewSQLiteResponse(new ArgumentException($"Command '{commandName}' not found."));
                 }
             }
 
@@ -265,29 +289,6 @@ namespace PN.Storage
                     return new SQLiteMethodResponse() { Exception = ex };
                 }
             }
-
-            static object[] ConvertArrayWithSingleListToArrayOfItems(object[] data)
-            {
-                if (data == null)
-                    return null;
-
-                if (data.Count() == 0)
-                    return data;
-
-                var enumerable = (data[0] as IEnumerable) == null ? data : data[0] as IEnumerable;
-
-                if (enumerable == null)
-                    return null;
-
-                List<object> values = new List<object>();
-
-                foreach (object obj in enumerable)
-                {
-                    values.Add(obj);
-                }
-
-                return values.ToArray();
-            } 
 
             private static string CreateWherePartOfSqlRequest(WhereCondition where, List<PropertyInfo> props)
             {
@@ -305,6 +306,7 @@ namespace PN.Storage
 
                     commandText += i == 0 ? " WHERE (" : string.Empty;
 
+                    condition.Parameters = Utils.Converters.ConvertArrayWithSingleListToArrayOfItems(condition.Parameters);
                     var quote = condition.Parameters[0] is string ? "'" : string.Empty;
                     switch (condition.Operation)
                     {
@@ -332,9 +334,8 @@ namespace PN.Storage
                             if (condition.Parameters.Length > 0)
                             {
                                 commandText += $"{condition.PropertyName} IN (";
-                                var qut = condition.Parameters[0] is List<string> ? "'" : string.Empty;
-                                foreach (var arrItem in condition.Parameters[0] as IList)
-                                    commandText += $"{qut}{arrItem}{qut},";
+                                foreach (var arrItem in condition.Parameters)
+                                    commandText += $"{quote}{arrItem}{quote},";
                                 commandText = commandText.TrimEnd(',') + ")";
                             }
 
@@ -399,7 +400,7 @@ namespace PN.Storage
                     using (SQLiteDataReader sqliteDataReader = command.ExecuteReader())
                     {
                         // Создаём лист типов, которые надо вернуть
-                        var result = CreateList(resultType);
+                        var result = Utils.Internal.CreateList(resultType);
                         // Пробегаемся по всем строкам результата
                         while (sqliteDataReader.Read())
                         {
@@ -416,13 +417,13 @@ namespace PN.Storage
 
                                     var objectToSetToProperty = (prop.PropertyType.IsValueType || prop.PropertyType == typeof(string)) ?
                                         Convert.ChangeType(objectFromSQLiteDataReader, prop.PropertyType) :
-                                        StringToObject((string)objectFromSQLiteDataReader, prop.PropertyType);
+                                        Utils.Converters.StringToObject((string)objectFromSQLiteDataReader, prop.PropertyType);
 
                                     prop.SetValue(resObj, objectFromSQLiteDataReader != DBNull.Value ? objectToSetToProperty : null, null);
                                 }
                                 catch (Exception ex)
                                 {
-                                    prop.SetValue(resObj, GetDefaultValue(prop.PropertyType), null);
+                                    prop.SetValue(resObj, Utils.Internal.CreateDefaultObject(prop.PropertyType), null);
                                 }
                             }
 
@@ -440,24 +441,6 @@ namespace PN.Storage
                 }
             }
 
-            static object StringToObject(string source, Type type)
-            {
-                if (string.IsNullOrEmpty(source))
-                    return Utils.Internal.CreateDefaultObject(type, true);
-
-                var decrypt = Crypt.AES.Decrypt(source, "SQLite");
-                return InternalNewtonsoft.Json.JsonConvert.DeserializeObject(decrypt, type);
-            }
-
-            static string ObjectToString(object value)
-            {
-                if (value == null)
-                    return null;
-
-                var json = InternalNewtonsoft.Json.JsonConvert.SerializeObject(value);
-                return Crypt.AES.Encrypt(json, "SQLite");
-            }
-
             // Get the type of calling method
             // It's may be Get | Set | Update | Delete
             private static string GetCurrentMethodName()
@@ -470,46 +453,47 @@ namespace PN.Storage
                 return sf.GetMethod().Name;
             }
 
-
-            static object GetDefaultValue(Type type) => type.IsValueType ? Activator.CreateInstance(type) : null;
-
-            static IList CreateList(Type listItemType)
-            {
-                Type genericListType = typeof(List<>).MakeGenericType(listItemType);
-                return (IList)Activator.CreateInstance(genericListType);
-            }
-            
             static string GetPropertyNameInTable(PropertyInfo prop) => prop.GetCustomAttribute<SQLiteNameAttribute>()?.Name ?? prop.Name;
+
+            static SQLiteMethodResponse NewSQLiteResponse(Exception ex = null)
+            {
+                if (ex == null)
+                    return new SQLiteMethodResponse() { RowsCountAffected = 0 };
+
+                LastQueryException = ex;
+
+                return new SQLiteMethodResponse() { Exception = ex };
+            }
 
             static SQLiteConnection GetConnection()
             {
-                if (Utils.Internal.CurrentPlatformIsWindows)
-                {
-                    if (Directory.Exists("x64") == false)
-                    {
-                        Directory.CreateDirectory("x64");
-                    }
+                //if (Utils.Internal.CurrentPlatformIsWindows)
+                //{
+                //    if (Directory.Exists("x64") == false)
+                //    {
+                //        Directory.CreateDirectory("x64");
+                //    }
 
-                    if (Directory.Exists("x86") == false)
-                    {
-                        Directory.CreateDirectory("x86");
-                    }
+                //    if (Directory.Exists("x86") == false)
+                //    {
+                //        Directory.CreateDirectory("x86");
+                //    }
 
-                    //if (File.Exists("System.Data.SQLite.dll") == false)
-                    //{
-                    //    Utils.Utils.Internal.WriteResourceToFile("PN.SQLiteDlls.System.Data.SQLite.dll", "System.Data.SQLite.dll");
-                    //}
+                //    //if (File.Exists("System.Data.SQLite.dll") == false)
+                //    //{
+                //    //    Utils.Utils.Internal.WriteResourceToFile("PN.SQLiteDlls.System.Data.SQLite.dll", "System.Data.SQLite.dll");
+                //    //}
 
-                    if (File.Exists("x64/SQLite.Interop.dll") == false)
-                    {
-                        Utils.Internal.WriteResourceToFile("PN.SQLiteDlls.x64.SQLite.Interop.dll", "x64/SQLite.Interop.dll");
-                    }
+                //    if (File.Exists("x64/SQLite.Interop.dll") == false)
+                //    {
+                //        Utils.Internal.WriteResourceToFile("PN.SQLiteDlls.x64.SQLite.Interop.dll", "x64/SQLite.Interop.dll");
+                //    }
 
-                    if (File.Exists("x86/SQLite.Interop.dll") == false)
-                    {
-                        Utils.Internal.WriteResourceToFile("PN.SQLiteDlls.x86.SQLite.Interop.dll", "x86/SQLite.Interop.dll");
-                    }
-                }
+                //    if (File.Exists("x86/SQLite.Interop.dll") == false)
+                //    {
+                //        Utils.Internal.WriteResourceToFile("PN.SQLiteDlls.x86.SQLite.Interop.dll", "x86/SQLite.Interop.dll");
+                //    }
+                //}
 
                 var path = Path.GetFullPath(PathToDB ?? throw new ArgumentException("Path to DB (SQLite) is not set!"));
                 // var pass = string.Empty;
@@ -540,30 +524,6 @@ namespace PN.Storage
                     return false;
                 }
             }
-
-
-
-            //
-            // internal static bool CheckConnection(string procid, string DBPath)
-            // {
-            //     try
-            //     {
-            //         using (SQLiteConnection conn = GetConnection())
-            //         {
-            //             conn.Open();
-            //             using (SQLiteCommand command = new SQLiteCommand("PRAGMA schema_version;", conn))
-            //             {
-            //                 var ret = command.ExecuteScalar();
-            //             }
-            //
-            //             return true;
-            //         }
-            //     }
-            //     catch (Exception ex)
-            //     {
-            //         return false;
-            //     }
-            // }
         }
 
 
