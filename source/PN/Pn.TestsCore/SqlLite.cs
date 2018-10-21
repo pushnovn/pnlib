@@ -70,7 +70,7 @@ namespace Pn.TestsCore
         public void DeleteTest()
         {
             SQLite.PathToDB = TestDb;
-            var setTest = SetTest(); // если SetTest прошел успешно, то в базе есть как минимум 1 запись
+            var setTest = SetTest();
             Assert.True(setTest, "setTest");
 
             var getTest = GetTest();
@@ -80,6 +80,29 @@ namespace Pn.TestsCore
             counts[0] = SQLite.Get<Message>().Count;
 
             SQLite.Delete(SQLite.Get<Message>()[0]);
+
+            counts[1] = SQLite.Get<Message>().Count;
+
+            Assert.NotEqual(counts[0], counts[1]);
+        }
+
+        [Fact]
+        public void WhereDeleteTest()
+        {
+            SQLite.PathToDB = TestDb;
+            var setTest = SetTest();
+            Assert.True(setTest, "setTest");
+
+            var getTest = GetTest();
+            Assert.True(getTest, "getTest");
+
+            var counts = new int[2];
+            counts[0] = SQLite.Get<Message>().Count;
+
+            var messageForDelete = SQLite.Get<Message>()[0];
+
+            SQLite.WhereAND(nameof(messageForDelete.Id), Is.Equals, messageForDelete.Id)
+                  .Delete(typeof(Message));
 
             counts[1] = SQLite.Get<Message>().Count;
 
