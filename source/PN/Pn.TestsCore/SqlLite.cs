@@ -33,7 +33,8 @@ namespace Pn.TestsCore
                 }
             });
 
-            Assert.Null(a);
+            Assert.NotNull(a);
+            Assert.Null(a.Exception);
 
             return true;
         }
@@ -81,6 +82,8 @@ namespace Pn.TestsCore
             SQLite.Delete(SQLite.Get<Message>()[0]);
 
             counts[1] = SQLite.Get<Message>().Count;
+
+            Assert.NotEqual(counts[0], counts[1]);
         }
 
         [SQLite.SQLiteName("Values")]
