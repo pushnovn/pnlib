@@ -577,7 +577,7 @@ namespace PN.Storage
         }
 
         /// <summary>
-        /// GlobalHeadersAttribute will be ignored for action where you will define IgnoreHeadersAttribute
+        /// All properties with such attributes will be ignored in SQL queries
         /// </summary>
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
         public class SQLiteIgnoreAttribute : Attribute { }
