@@ -43,13 +43,9 @@ namespace ConsoleApp1
         }
 
         #endregion
+        
 
-        public class BaseEntity
-        {
-            public int id { get; set; }
-        }
-
-        public class Post : BaseEntity
+        public class Post
         {
             public int id { get; set; }
             public string Text { get; set; }
@@ -57,15 +53,8 @@ namespace ConsoleApp1
             public List<Comment> Comments { get; set; }
         }
         
-        public class User : BaseEntity
-        {
-            public int id { get; set; }
-            public string Name { get; set; }
-            public List<Post> Posts { get; set; }
-            public List<Comment> Comments { get; set; }
-        }
 
-        public class Comment : BaseEntity
+        public class Comment
         {
             public int id { get; set; }
             public string Text { get; set; }
@@ -73,6 +62,13 @@ namespace ConsoleApp1
             public User Author { get; set; }
         }
 
+        public class User
+        {
+            public int id { get; set; }
+            public string Name { get; set; }
+            public List<Post> Posts { get; set; }
+      //      public List<Comment> Comments { get; set; }
+        }
 
 
         static void Main(string[] args)

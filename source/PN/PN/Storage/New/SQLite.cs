@@ -136,9 +136,17 @@ namespace PN.Storage.New
                 set => _propertyType = value ?? _propertyType;
             }
 
+            public string TableName => PropertyType?.GetCustomAttribute<SQLiteNameAttribute>()?.Name ?? ((PropertyType?.Name ?? "") + "s");
+
+            public string TablePropertyName => Property?.GetCustomAttribute<SQLiteNameAttribute>()?.Name ?? Property?.Name;
+
+            public string TableAnyName => Property == null ? TableName : TablePropertyName;
+
             public string PropertyHash { get; set; }
 
             public bool IsEnumerable { get; set; }
+
+            public bool IsTable { get; set; }
 
             public Node Parent { get; set; }
 
@@ -154,26 +162,32 @@ namespace PN.Storage.New
             var node = Worker.FullfillChildrenNodes(new Node(type));
 
             var json = JsonConvert.SerializeObject(node, Formatting.Indented,
-new JsonSerializerSettings
-{
-    PreserveReferencesHandling = PreserveReferencesHandling.Objects
-});
+            new JsonSerializerSettings
+            {
+                PreserveReferencesHandling = PreserveReferencesHandling.Objects
+            });
 
-         //   Console.WriteLine(json);
+            //   Console.WriteLine(json);
 
-            var str = String.Empty;
+            var strWhere = String.Empty;
+            var strJoin = String.Empty;
+            var strSelect = String.Empty;
 
             foreach (var child in node.Children)
             {
-                str += Worker.CreateSelectPartOfSqlRequestFromNode2(child); 
+                strSelect += Worker.CreateSelectPartOfSqlRequestFromNode(child);
+                strJoin += Worker.CreateJoinPartOfSqlRequestFromNode(child);
+                strWhere += Worker.CreateWherePartOfSqlRequestFromNode(child);
             }
 
+            var str = "SELECT " + strSelect + strJoin + strWhere;
+
             Console.WriteLine(str);
-            
+
             return node;
         }
 
-        #region Worker
+        #region Workerk
 
         internal class Worker
         {
@@ -207,10 +221,11 @@ new JsonSerializerSettings
                             Property = prop,
                             PropertyType = enumInfo.PropertyType,
                             IsEnumerable = enumInfo.IsEnumerable,
+                            IsTable = TypeTableExists(enumInfo.PropertyType, tables),
                             Parent = ParentNode,
                         };
 
-                        childNode = TypeTableExists(enumInfo.PropertyType, tables) ? FullfillChildrenNodes(childNode, tables) : childNode;
+                        childNode = childNode.IsTable ? FullfillChildrenNodes(childNode, tables) : childNode;
 
                         ParentNode.Children.Add(childNode);
                     }
@@ -219,17 +234,13 @@ new JsonSerializerSettings
                 return ParentNode;
             }
 
-            static string GetTableNameByType(Type type)
-            {
-                return type.GetCustomAttribute<SQLiteNameAttribute>()?.Name ?? type.Name + "s";
-            }
-            
+
             static bool TypeTableExists(Type type, List<sqlite_master> tables)
             {
                 return tables.Any(t => t.name == (type.GetCustomAttribute<SQLiteNameAttribute>()?.Name ?? type.Name + "s"));
             }
 
-            static (Type PropertyType, bool IsEnumerable) DecomposeType (PropertyInfo prop)
+            static (Type PropertyType, bool IsEnumerable) DecomposeType(PropertyInfo prop)
             {
                 var isEnumerable = typeof(IEnumerable).IsAssignableFrom(prop.PropertyType) && prop.PropertyType != typeof(string);
 
@@ -243,26 +254,26 @@ new JsonSerializerSettings
 
             #endregion
 
-            internal static int deep = 0;
+            internal static string delimeter = "_";
+            internal static int deepJoin = 0;
+            internal static int deepWhere = 0;
+            internal static int deepSelect = 0;
 
-            internal static string CreateSelectPartOfSqlRequestFromNode2(Node node)
+            internal static string CreateJoinPartOfSqlRequestFromNode(Node node)
             {
                 if (node.Children == null)
                     return "";
 
-                deep++;
+                deepJoin++;
 
                 var tempSelectString = string.Empty;
 
                 var tempName = string.Empty;
                 var tempNode = node;
 
-               // var delimeter = " => ";
-                var delimeter = "_";
-
                 while (tempNode != null)
                 {
-                    tempName = (tempNode.Property == null ? GetTableNameByType(tempNode.PropertyType) : GetPropertyNameInTable(tempNode.Property))  + delimeter + tempName;
+                    tempName = tempNode.TableAnyName + delimeter + tempName;
 
                     tempNode = tempNode.Parent;
                 }
@@ -270,28 +281,145 @@ new JsonSerializerSettings
                 tempName = tempName.Remove(tempName.Length - delimeter.Length);
 
                 tempSelectString += $"{Environment.NewLine}" +
-                    // $"{Spaces(deep)}" +
+                     $"{Spaces(deepJoin)}" +
                     // $"{deep}: " +
                     $"JOIN " +
-                 //   $"{(node.Property == null ? GetTableNameByType(node.PropertyType) : GetPropertyNameInTable(node.Property))} AS {tempName}";
-                    $"{GetTableNameByType(node.PropertyType)} AS {tempName}";
+                    //   $"{(node.Property == null ? GetTableNameByType(node.PropertyType) : GetPropertyNameInTable(node.Property))} AS {tempName}";
+                    $"{node.TableName} AS {tempName}";
 
                 foreach (var subChild in node.Children ?? new List<Node>())
                 {
-                    tempSelectString += CreateSelectPartOfSqlRequestFromNode2(subChild);
+                    tempSelectString += CreateJoinPartOfSqlRequestFromNode(subChild);
                 }
 
-                deep--;
+                deepJoin--;
 
                 return tempSelectString;
             }
+            
+            internal static string CreateWherePartOfSqlRequestFromNode(Node node)
+            {
+                // and Users_Posts_Author_Comments.Id in (select Id1 from Сonnections where type = "" and Users_Posts_Author.Id = id2)
+
+                // AND
+                // CurrentPath.Id
+                // IN
+                // ( SELECT 
+                // ID1 or ID2
+                // where type = 
+                // (node.PropertyType, node.Parent.PropertyType).Sort().Join(" AND ")
+                // AND
+                // ParentPath.Id = 
+                // ID2 or ID1 )
+
+                if (node.Children == null)
+                    return "";
+
+                deepWhere++;
+
+                var tempSelectString = string.Empty;
+
+                var tempName = string.Empty;
+                var tempParrentName = string.Empty;
+                var tempNode = node;
+                var tempParent = node.Parent;
+                
+                while (tempNode != null)
+                {
+                    tempName = tempNode.TableAnyName + delimeter + tempName;
+
+                    tempNode = tempNode.Parent;
+                }
+
+                while (tempParent != null)
+                {
+                    tempParrentName = tempParent.TableAnyName + delimeter + tempParrentName;
+
+                    tempParent = tempParent.Parent;
+                }
+
+
+                tempParrentName = tempParrentName.Remove(tempParrentName.Length - delimeter.Length);
+
+                var typesNames = new List<string> { node.PropertyType.Name, node.Parent.PropertyType.Name };
+                typesNames.Sort();
+                var whereTypeName = $"{typesNames[0]}_AND_{typesNames[1]}";
+
+                var idForSelect = node.PropertyType.Name == typesNames[0] ? "ID1" : "ID2";
+                var idForWhere = node.PropertyType.Name != typesNames[0] ? "ID1" : "ID2";
+
+                tempSelectString += $"{Environment.NewLine}" +
+                    $"{Spaces(deepWhere)}" +
+              //      $"{deepWhere}: " +
+                    $"AND " +
+                    $"{tempName} IN " +
+                        $"(SELECT {idForSelect} " +
+                            $"WHERE TYPE=\"{whereTypeName}\" AND {tempParrentName}.Id = {idForWhere})";
+
+                foreach (var subChild in node.Children ?? new List<Node>())
+                {
+                    tempSelectString += CreateWherePartOfSqlRequestFromNode(subChild);
+                }
+
+                deepWhere--;
+
+                return tempSelectString;
+            }
+            
+            internal static string CreateSelectPartOfSqlRequestFromNode(Node node)
+            {
+                deepSelect++;
+
+                var tempSelectString = string.Empty;
+
+                if (node.IsTable == false)
+                {
+                    var tempNode = node;
+                    var tempList = new List<String>();
+
+                    while (tempNode != null)
+                    {
+                        tempList.Insert(0,tempNode.TableAnyName);
+
+                        tempNode = tempNode.Parent;
+                    }
+                    
+                    var afterDot = tempList.LastOrDefault();
+                    tempList.RemoveAt(tempList.Count - 1);
+
+                    var left = string.Join(delimeter, tempList.ToArray());
+                    
+                    //  Post.id as "PostId", Post.Text as "PostText", Comments.Text as "CommentText", CommentAuther.Name as "CommentAutherName"
+
+
+                    tempSelectString += $"{Environment.NewLine}" +
+                         $"{Spaces(deepJoin)}" +
+                        // $"{deep}: " +
+                        //   $"{(node.Property == null ? GetTableNameByType(node.PropertyType) : GetPropertyNameInTable(node.Property))} AS {tempName}";
+                        $"{left}.{afterDot} AS {left}{delimeter}{afterDot}, ";
+                }
+                
+                foreach (var subChild in node.Children ?? new List<Node>())
+                {
+                    tempSelectString += CreateSelectPartOfSqlRequestFromNode(subChild);
+                }
+
+                deepSelect--;
+
+                return tempSelectString;
+             //   return deepSelect == 0? tempSelectString.Trim().Trim(',') : tempSelectString;
+            }
+
+
+
+
 
             internal static string Spaces(int count)
             {
                 var str = string.Empty;
 
-                for (int i = 0; i < count-1; i++)
-                    str += "  ";
+                for (int i = 0; i < count - 1; i++)
+                    str += "    ";
 
                 return str;
             }
@@ -302,7 +430,7 @@ new JsonSerializerSettings
             internal static object ExecuteQuery(object[] data = null, Type resultType = null, WhereCondition where = null)
             {
                 var commandName = GetCurrentMethodName();
-                                
+
                 data = Utils.Converters.ConvertArrayWithSingleListToArrayOfItems(data);
 
                 if (commandName.Equals("Truncate") == false)
@@ -371,16 +499,16 @@ new JsonSerializerSettings
                                 {
                                     var value = prop.GetValue(obj, null);
                                     value = (value != null && value is string) ? (value as string).Replace("\'", "\'\'") : value;
-                                    
+
                                     if (prop.PropertyType.IsValueType == false && prop.PropertyType != typeof(string))
                                         value = Utils.Converters.ObjectToString(value);
-                                    
+
                                     strWithValues += value == null ? "NULL," : $"'{value}',";
                                 }
 
                                 strWithValues = strWithValues.TrimEnd(',') + "),";
                             }
-                            
+
                             command.CommandText = tableToInsertPartOfQuery + strWithFields + strWithValues.TrimEnd(',') + ";";
 
                             return ExecuteNonQueryWithResponse(command);
@@ -406,7 +534,7 @@ new JsonSerializerSettings
                                     value = value != null && value is string ? (value as string).Replace("\'", "\'\'") : value;
 
                                     var id = resultType.GetProperty("id", bindingFlags | BindingFlags.IgnoreCase).GetValue(obj, null);
-                                    
+
                                     if (prop.PropertyType.IsValueType == false && prop.PropertyType != typeof(string))
                                         value = Utils.Converters.ObjectToString(value);
 
@@ -417,7 +545,7 @@ new JsonSerializerSettings
 
                                 groupString += "END,";
                             }
-                            
+
                             groupString = $"{groupString.TrimEnd(',')} WHERE id IN ({idsEnum.TrimEnd(',')});";
 
                             command.CommandText = tableToInsertPartOfQueryForUpdateMethod + groupString;
@@ -460,7 +588,7 @@ new JsonSerializerSettings
                             command.CommandText = $"DELETE FROM {tableName} {CreateWherePartOfSqlRequest(where, props)}";
 
                             return ExecuteNonQueryWithResponse(command);
-                            
+
                         #endregion
 
                         #region Truncate method implementation
@@ -485,7 +613,7 @@ new JsonSerializerSettings
                                 return ExecuteNonQueryWithResponse(command);
                             else
                                 return GetResultsFromDB(command, resultType, GetSQLitePropertiesFromType(resultType));
-                        #endregion
+                            #endregion
                     }
 
                     return NewSQLiteResponse(new ArgumentException($"Command '{commandName}' not found."));
@@ -770,7 +898,7 @@ new JsonSerializerSettings
         /// </summary>
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
         public class SQLiteIgnoreAttribute : Attribute { }
-        
+
         #endregion
     }
 
@@ -809,7 +937,7 @@ new JsonSerializerSettings
         ///<summary>Get bool type as parameter</summary>
         Reversed,
     }
-    
+
     public class WhereCondition
     {
         public WhereCondition Where(string propertyName, Is operation, params object[] parameters)
@@ -854,15 +982,15 @@ new JsonSerializerSettings
         internal bool Reverse = false;
         internal ConditionTypes ConditionType = ConditionTypes.AND;
 
-        public List<T> Get<T>() => (List<T>) SQLite.Worker.ExecuteQuery(null, typeof(T), this);
+        public List<T> Get<T>() => (List<T>)SQLite.Worker.ExecuteQuery(null, typeof(T), this);
 
         public IList Get(Type type) => (IList)SQLite.Worker.ExecuteQuery(null, type, this);
 
-        public int GetCount<T>() => (int) SQLite.Worker.ExecuteQuery(null, typeof(T), this);
+        public int GetCount<T>() => (int)SQLite.Worker.ExecuteQuery(null, typeof(T), this);
 
-        public SQLiteMethodResponse Delete<T>(params object[] data) => (SQLiteMethodResponse) SQLite.Worker.ExecuteQuery(data, typeof(T), this);
+        public SQLiteMethodResponse Delete<T>(params object[] data) => (SQLiteMethodResponse)SQLite.Worker.ExecuteQuery(data, typeof(T), this);
 
-        public SQLiteMethodResponse Delete(Type type, params object[] data) => (SQLiteMethodResponse) SQLite.Worker.ExecuteQuery(data, type, this);
+        public SQLiteMethodResponse Delete(Type type, params object[] data) => (SQLiteMethodResponse)SQLite.Worker.ExecuteQuery(data, type, this);
     }
 
     public class SQLiteMethodResponse
