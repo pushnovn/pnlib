@@ -24,8 +24,74 @@ namespace ConsoleApp1
             public List<string> ListV { get; set; }
         }
         
+        class User
+        {
+            public int id { get; set; }
+            public string Name { get; set; }
+            public List<PostSingle> Posts { get; set; }
+        }
+
+
+        [PN.Storage.New.SQLite.SQLiteName("Posts")]
+        class PostSingle
+        {
+            public int id { get; set; }
+            public string Text { get; set; }
+            public User Author { get; set; }
+        }
+
+        [PN.Storage.New.SQLite.SQLiteName("Posts")]
+        class PostMulti
+        {
+            public int id { get; set; }
+            public string Text { get; set; }
+            public List<User> Authors { get; set; }
+        }
+
         static void Main(string[] args)
         {
+            PN.Storage.New.SQLite.PathToDB = @"C:\Temp\SQLite\sqlite-test.db";
+
+            var nodeSingle = PN.Storage.New.SQLite.GenerateTree<PostSingle>();
+            var nodeMulti= PN.Storage.New.SQLite.GenerateTree<PostMulti>();
+
+
+
+            Console.ReadLine();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            return;
+
+
             var search = new PN.Search.Distance();
 
             var tttp = search.Search("1");

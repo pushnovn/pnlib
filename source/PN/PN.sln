@@ -11,7 +11,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SampleWebApiAspNetCore", "S
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pn.Tests", "Pn.Tests\Pn.Tests.csproj", "{32244514-FCBC-4073-B6D1-904644A9AACC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pn.TestsCore", "Pn.TestsCore\Pn.TestsCore.csproj", "{11657DAF-C2FE-4B33-8F0E-EEB5ADBB5468}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Pn.TestsCore", "Pn.TestsCore\Pn.TestsCore.csproj", "{11657DAF-C2FE-4B33-8F0E-EEB5ADBB5468}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
