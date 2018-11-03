@@ -67,7 +67,7 @@ namespace ConsoleApp1
             public int id { get; set; }
             public string Name { get; set; }
             public List<Post> Posts { get; set; }
-      //      public List<Comment> Comments { get; set; }
+            public List<Comment> Comments { get; set; }
         }
 
 

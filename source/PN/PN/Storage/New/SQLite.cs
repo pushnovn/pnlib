@@ -180,7 +180,12 @@ namespace PN.Storage.New
                 strWhere += Worker.CreateWherePartOfSqlRequestFromNode(child);
             }
 
-            var str = "SELECT " + strSelect + strJoin + strWhere;
+            strWhere = strWhere.TrimStart();
+            strWhere = (strWhere.StartsWith("AND") ? strWhere.Substring(3) : strWhere).Trim();
+
+            var str = "SELECT " + strSelect.Trim().Trim(',') + 
+                Environment.NewLine + $" FROM {node.TableName} " + strJoin + 
+                (string.IsNullOrWhiteSpace(strWhere) ? string.Empty : Environment.NewLine + " WHERE " + strWhere);
 
             Console.WriteLine(str);
 
@@ -324,6 +329,7 @@ namespace PN.Storage.New
                 var tempNode = node;
                 var tempParent = node.Parent;
                 
+
                 while (tempNode != null)
                 {
                     tempName = tempNode.TableAnyName + delimeter + tempName;
@@ -331,22 +337,28 @@ namespace PN.Storage.New
                     tempNode = tempNode.Parent;
                 }
 
+                var props = GetSQLitePropertiesFromType(node.PropertyType);
+                var id = props.FirstOrDefault(prop => prop.Name.ToLower() == "id")?.Name;
+                tempName = tempName.Remove(tempName.Length - delimeter.Length) + (id == null ? "" : $".{id}");
+
+
                 while (tempParent != null)
                 {
                     tempParrentName = tempParent.TableAnyName + delimeter + tempParrentName;
 
                     tempParent = tempParent.Parent;
                 }
-
-
+                
                 tempParrentName = tempParrentName.Remove(tempParrentName.Length - delimeter.Length);
+
 
                 var typesNames = new List<string> { node.PropertyType.Name, node.Parent.PropertyType.Name };
                 typesNames.Sort();
                 var whereTypeName = $"{typesNames[0]}_AND_{typesNames[1]}";
 
-                var idForSelect = node.PropertyType.Name == typesNames[0] ? "ID1" : "ID2";
-                var idForWhere = node.PropertyType.Name != typesNames[0] ? "ID1" : "ID2";
+                var tbl = " FROM Сonnections ";
+                var idForSelect = (node.PropertyType.Name == typesNames[0] ? "ID1" : "ID2") + tbl;
+                var idForWhere = (node.PropertyType.Name != typesNames[0] ? "ID1" : "ID2");
 
                 tempSelectString += $"{Environment.NewLine}" +
                     $"{Spaces(deepWhere)}" +
@@ -396,7 +408,7 @@ namespace PN.Storage.New
                          $"{Spaces(deepJoin)}" +
                         // $"{deep}: " +
                         //   $"{(node.Property == null ? GetTableNameByType(node.PropertyType) : GetPropertyNameInTable(node.Property))} AS {tempName}";
-                        $"{left}.{afterDot} AS {left}{delimeter}{afterDot}, ";
+                        $"{left}.{afterDot} AS \"{left}{delimeter}{afterDot}\", ";
                 }
                 
                 foreach (var subChild in node.Children ?? new List<Node>())
