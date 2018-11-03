@@ -14,6 +14,8 @@ namespace ConsoleApp1
 {
     class Program
     {
+        #region
+
         [SQLite.SQLiteName("Value_")]
         private class Value
         {
@@ -24,14 +26,6 @@ namespace ConsoleApp1
             public List<string> ListV { get; set; }
         }
         
-        class User
-        {
-            public int id { get; set; }
-            public string Name { get; set; }
-            public List<PostSingle> Posts { get; set; }
-        }
-
-
         [PN.Storage.New.SQLite.SQLiteName("Posts")]
         class PostSingle
         {
@@ -48,12 +42,51 @@ namespace ConsoleApp1
             public List<User> Authors { get; set; }
         }
 
+        #endregion
+
+        public class BaseEntity
+        {
+            public int id { get; set; }
+        }
+
+        public class Post : BaseEntity
+        {
+            public int id { get; set; }
+            public string Text { get; set; }
+            public User Author { get; set; }
+            public List<Comment> Comments { get; set; }
+        }
+        
+        public class User : BaseEntity
+        {
+            public int id { get; set; }
+            public string Name { get; set; }
+            public List<Post> Posts { get; set; }
+            public List<Comment> Comments { get; set; }
+        }
+
+        public class Comment : BaseEntity
+        {
+            public int id { get; set; }
+            public string Text { get; set; }
+            public Post SourcePost { get; set; }
+            public User Author { get; set; }
+        }
+
+
+
         static void Main(string[] args)
         {
             PN.Storage.New.SQLite.PathToDB = @"C:\Temp\SQLite\sqlite-test.db";
 
-            var nodeSingle = PN.Storage.New.SQLite.GenerateTree<PostSingle>();
-            var nodeMulti= PN.Storage.New.SQLite.GenerateTree<PostMulti>();
+
+            var nodeSingle = PN.Storage.New.SQLite.GenerateTree<User>();
+
+
+
+
+            //var nodeSingle = PN.Storage.New.SQLite.GenerateTree<PostSingle>();
+            //var nodeMulti= PN.Storage.New.SQLite.GenerateTree<PostMulti>();
 
 
 

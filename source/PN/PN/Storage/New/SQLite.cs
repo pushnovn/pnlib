@@ -6,6 +6,7 @@ using System.Data.SQLite;
 using System.Diagnostics;
 using System.Collections;
 using System.Collections.Generic;
+using InternalNewtonsoft.Json;
 
 namespace PN.Storage.New
 {
@@ -15,12 +16,12 @@ namespace PN.Storage.New
 
         public static IList Get(Type type)
         {
-            return (IList) Worker.ExecuteQuery(null, type);
+            return (IList)Worker.ExecuteQuery(null, type);
         }
 
         public static List<T> Get<T>()
         {
-            return (List<T>) Worker.ExecuteQuery(null, typeof(T));
+            return (List<T>)Worker.ExecuteQuery(null, typeof(T));
         }
 
         public static int GetCount<T>()
@@ -30,36 +31,36 @@ namespace PN.Storage.New
 
         public static SQLiteMethodResponse Set(params object[] data)
         {
-            return (SQLiteMethodResponse) Worker.ExecuteQuery(data);
+            return (SQLiteMethodResponse)Worker.ExecuteQuery(data);
         }
 
         public static SQLiteMethodResponse Update(params object[] data)
         {
-            return (SQLiteMethodResponse) Worker.ExecuteQuery(data);
+            return (SQLiteMethodResponse)Worker.ExecuteQuery(data);
         }
 
         public static SQLiteMethodResponse Delete(params object[] data)
         {
-            return (SQLiteMethodResponse) Worker.ExecuteQuery(data);
+            return (SQLiteMethodResponse)Worker.ExecuteQuery(data);
         }
 
         public static SQLiteMethodResponse Truncate<T>(params object[] data)
         {
-            return (SQLiteMethodResponse) Worker.ExecuteQuery(data, typeof(T));
+            return (SQLiteMethodResponse)Worker.ExecuteQuery(data, typeof(T));
         }
 
 
         public static SQLiteMethodResponse ExecuteString(string str)
         {
-            return (SQLiteMethodResponse) Worker.ExecuteQuery(new object[] { str });
+            return (SQLiteMethodResponse)Worker.ExecuteQuery(new object[] { str });
         }
         public static List<T> ExecuteString<T>(string str)
         {
-            return (List<T>) Worker.ExecuteQuery(new object[] { str }, typeof(T));
+            return (List<T>)Worker.ExecuteQuery(new object[] { str }, typeof(T));
         }
         public static IList ExecuteString(string str, Type returnType)
         {
-            return (IList) Worker.ExecuteQuery(new object[] { str }, returnType);
+            return (IList)Worker.ExecuteQuery(new object[] { str }, returnType);
         }
 
         #endregion
@@ -148,15 +149,39 @@ namespace PN.Storage.New
 
         public static Node GenerateTree<T>() => GenerateTree(typeof(T));
 
-        public static Node GenerateTree(Type type) => Worker.FullfillChildrenNodes(new Node(type), Tables);
+        public static Node GenerateTree(Type type)
+        {
+            var node = Worker.FullfillChildrenNodes(new Node(type));
+
+            var json = JsonConvert.SerializeObject(node, Formatting.Indented,
+new JsonSerializerSettings
+{
+    PreserveReferencesHandling = PreserveReferencesHandling.Objects
+});
+
+         //   Console.WriteLine(json);
+
+            var str = String.Empty;
+
+            foreach (var child in node.Children)
+            {
+                str += Worker.CreateSelectPartOfSqlRequestFromNode2(child); 
+            }
+
+            Console.WriteLine(str);
+            
+            return node;
+        }
 
         #region Worker
 
         internal class Worker
         {
+            #region Building Tree
 
-            internal static Node FullfillChildrenNodes(Node ParentNode, List<sqlite_master> tables)
+            internal static Node FullfillChildrenNodes(Node ParentNode, List<sqlite_master> tables = null)
             {
+                tables = tables ?? Tables;
                 ParentNode.PropertyHash = GetHashOfProperty(ParentNode.Property);
 
                 var needAddChildren = true;
@@ -193,6 +218,11 @@ namespace PN.Storage.New
 
                 return ParentNode;
             }
+
+            static string GetTableNameByType(Type type)
+            {
+                return type.GetCustomAttribute<SQLiteNameAttribute>()?.Name ?? type.Name + "s";
+            }
             
             static bool TypeTableExists(Type type, List<sqlite_master> tables)
             {
@@ -211,10 +241,60 @@ namespace PN.Storage.New
                 return InternalNewtonsoft.Json.JsonConvert.SerializeObject(prop);
             }
 
+            #endregion
 
+            internal static int deep = 0;
 
+            internal static string CreateSelectPartOfSqlRequestFromNode2(Node node)
+            {
+                if (node.Children == null)
+                    return "";
 
+                deep++;
 
+                var tempSelectString = string.Empty;
+
+                var tempName = string.Empty;
+                var tempNode = node;
+
+               // var delimeter = " => ";
+                var delimeter = "_";
+
+                while (tempNode != null)
+                {
+                    tempName = (tempNode.Property == null ? GetTableNameByType(tempNode.PropertyType) : GetPropertyNameInTable(tempNode.Property))  + delimeter + tempName;
+
+                    tempNode = tempNode.Parent;
+                }
+
+                tempName = tempName.Remove(tempName.Length - delimeter.Length);
+
+                tempSelectString += $"{Environment.NewLine}" +
+                    // $"{Spaces(deep)}" +
+                    // $"{deep}: " +
+                    $"JOIN " +
+                 //   $"{(node.Property == null ? GetTableNameByType(node.PropertyType) : GetPropertyNameInTable(node.Property))} AS {tempName}";
+                    $"{GetTableNameByType(node.PropertyType)} AS {tempName}";
+
+                foreach (var subChild in node.Children ?? new List<Node>())
+                {
+                    tempSelectString += CreateSelectPartOfSqlRequestFromNode2(subChild);
+                }
+
+                deep--;
+
+                return tempSelectString;
+            }
+
+            internal static string Spaces(int count)
+            {
+                var str = string.Empty;
+
+                for (int i = 0; i < count-1; i++)
+                    str += "  ";
+
+                return str;
+            }
 
 
 
