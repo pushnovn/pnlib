@@ -4,11 +4,13 @@ using PN.Storage;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using static PN.Network.HTTP;
 using static PN.Network.HTTP.Entities;
+using static PN.Storage.Export;
 
 namespace ConsoleApp1
 {
@@ -70,9 +72,69 @@ namespace ConsoleApp1
             public List<Comment> Comments { get; set; }
         }
 
+        [ExportName("Список рейсов")]
+        public class Air
+        {
+            [ExportName("Номер рейса")]
+            public string Number { get; set; }
+
+            [ExportName("Количество пассажиров")]
+            public int PassengersCount { get; set; }
+
+            public string PlaneType { get; set; }
+
+            [ExportName("Аэропорт отправления")]
+            public string AirportFrom { get; set; }
+
+            public string AirportTo { get; set; }
+        }
+
 
         static void Main(string[] args)
         {
+            var air1 = new Air()
+            {
+                Number = "BDF3546",
+                PassengersCount =73,
+                PlaneType = "Boeng",
+                AirportFrom = "Minsk-1",
+                AirportTo = "Kiev-2",
+            };
+
+            var air2 = new Air()
+            {
+                Number = "NNU432",
+                PassengersCount = 121,
+                PlaneType = "Airbus A-380",
+                AirportFrom = "London-3",
+                AirportTo = "Borispol",
+            };
+
+            var byteArray2 = PN.Storage.Export.ToXLSX(air1, air2);
+            var byteArray1 = PN.Storage.Export.ToPDF(air1, air2);
+            var byteArray = PN.Storage.Export.ToCSV(air1, air2);
+
+            var path2 = "C:\\Temp\\test.xlsx";
+            var path1 = "C:\\Temp\\test.pdf";
+            var path = "C:\\Temp\\test.txt";
+
+            if (File.Exists(path))
+                File.Delete(path);
+
+            using (var fileStream = File.OpenWrite(path))
+            {
+                fileStream.Write(byteArray, 0, byteArray.Length);
+            }
+
+            Process.Start(path); 
+
+       //     Console.ReadKey();
+
+            return;
+
+
+
+
             PN.Storage.New.SQLite.PathToDB = @"C:\Temp\SQLite\sqlite-test.db";
 
 
