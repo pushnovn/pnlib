@@ -6,55 +6,68 @@ using System.Data.SQLite;
 using System.Diagnostics;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace PN.Storage
 {
     public class SQLite
     {
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public static IList Get(Type type)
         {
             return (IList) Worker.ExecuteQuery(null, type);
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public static List<T> Get<T>()
         {
             return (List<T>) Worker.ExecuteQuery(null, typeof(T));
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public static int GetCount<T>()
         {
             return (int)Worker.ExecuteQuery(null, typeof(T));
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public static SQLiteMethodResponse Set(params object[] data)
         {
             return (SQLiteMethodResponse) Worker.ExecuteQuery(data);
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public static SQLiteMethodResponse Update(params object[] data)
         {
             return (SQLiteMethodResponse) Worker.ExecuteQuery(data);
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public static SQLiteMethodResponse Delete(params object[] data)
         {
             return (SQLiteMethodResponse) Worker.ExecuteQuery(data);
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public static SQLiteMethodResponse Truncate<T>(params object[] data)
         {
             return (SQLiteMethodResponse) Worker.ExecuteQuery(data, typeof(T));
         }
 
 
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public static SQLiteMethodResponse ExecuteString(string str)
         {
             return (SQLiteMethodResponse) Worker.ExecuteQuery(new object[] { str });
         }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public static List<T> ExecuteString<T>(string str)
         {
             return (List<T>) Worker.ExecuteQuery(new object[] { str }, typeof(T));
         }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public static IList ExecuteString(string str, Type returnType)
         {
             return (IList) Worker.ExecuteQuery(new object[] { str }, returnType);
@@ -112,6 +125,7 @@ namespace PN.Storage
         internal class Worker
         {
             // Исполняем любой запрос к БД
+            [MethodImpl(MethodImplOptions.NoInlining)]
             internal static object ExecuteQuery(object[] data = null, Type resultType = null, WhereCondition where = null)
             {
                 var commandName = GetCurrentMethodName();

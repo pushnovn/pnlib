@@ -48,6 +48,11 @@ namespace PN.Storage
         /// </summary>
         public static byte[] ToPDF(bool withHeader, params object[] objects) => ToExport(withHeader, Format.PDF, objects);
 
+        /// <summary>
+        /// Import List<T> from file (<paramref name="bytes"/>).
+        /// </summary>
+        public static List<T> FromPDF<T>(bool withHeader, byte[] bytes) => ToImport<T>(withHeader, Format.PDF, bytes);
+
 
         /// <summary>
         /// Export to PDF format file.
@@ -103,7 +108,10 @@ namespace PN.Storage
 
                 case Format.XLS:
                     return ParseXLS<T>(withHeader, bytes, props);
-                    
+
+                case Format.PDF:
+                    return ParsePDF<T>(withHeader, bytes, props);
+
                 case Format.CSV:
                     return ParseCSV<T>(withHeader, bytes, props);
 
@@ -235,12 +243,34 @@ namespace PN.Storage
                     }
                 }
 
+                #region Meta info for parsing future importing PDFs
+
+                var field = new TextField(writer, new Rectangle(0, 0, 0, 0), "hidden-text")
+                {
+                    Text = Encoding.UTF8.GetString(ToCSV(withHeader, objects)),
+                    Visibility = BaseField.HIDDEN,
+                };
+                writer.AddAnnotation(field.GetTextField());
+                
+                #endregion
+                
                 document.Add(table);
 
                 document.Close();
 
                 return stream.GetBuffer();
             }
+        }
+
+        private static List<T> ParsePDF<T>(bool withHeader, byte[] bytes, List<PropertyInfo> props)
+        {
+            var pdfReader = new PdfReader(bytes);
+            var pageDict = pdfReader.GetPageN(1);
+            var annotArray = pageDict.GetAsArray(PdfName.ANNOTS);
+            var curAnnot = annotArray.GetAsDict(0);
+            var strWithCSV = curAnnot.GetAsString(PdfName.V).ToString();
+            var bytesFromCSV = Encoding.UTF8.GetBytes(strWithCSV);
+            return FromCSV<T>(withHeader, bytesFromCSV);
         }
 
         private static Phrase CreatePhrase(string text)
