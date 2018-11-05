@@ -10,7 +10,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using static PN.Network.HTTP;
 using static PN.Network.HTTP.Entities;
-using static PN.Storage.Export;
+using static PN.Storage.ExportЁr;
 
 namespace ConsoleApp1
 {
@@ -110,13 +110,20 @@ namespace ConsoleApp1
                 AirportTo = "Borispol",
             };
 
-            var byteArray2 = PN.Storage.Export.ToXLSX(air1, air2);
-            var byteArray1 = PN.Storage.Export.ToPDF(air1, air2);
-            var byteArray = PN.Storage.Export.ToCSV(air1, air2);
 
-            var path2 = "C:\\Temp\\test.xlsx";
-            var path1 = "C:\\Temp\\test.pdf";
-            var path = "C:\\Temp\\test.txt";
+
+
+            var byteArray1 = PN.Storage.ExportЁr.ToXLSX(false, air1, air2, new List<Air>() { air1, air2 });
+            var byteArray2 = PN.Storage.ExportЁr.ToPDF(false, air1, air2);
+            var byteArray3 = PN.Storage.ExportЁr.ToCSV(false, air1, air2);
+            var byteArray4 = PN.Storage.ExportЁr.ToXLS(true, air1, air2, new List<Air>() { air1, air2 });
+            var byteArray = byteArray4;
+
+            var path1 = "C:\\Temp\\test.xlsx";
+            var path2 = "C:\\Temp\\test.pdf";
+            var path3 = "C:\\Temp\\test.txt";
+            var path4 = "C:\\Temp\\test.xls";
+            var path = path4;
 
             if (File.Exists(path))
                 File.Delete(path);
@@ -126,9 +133,12 @@ namespace ConsoleApp1
                 fileStream.Write(byteArray, 0, byteArray.Length);
             }
 
-            Process.Start(path); 
+            Process.Start(path);
 
-       //     Console.ReadKey();
+         //   var result = PN.Storage.ExportImport.FromXLSX<Air>(byteArray);
+            var result = PN.Storage.ExportЁr.FromXLS<Air>(true, byteArray);
+
+            //     Console.ReadKey();
 
             return;
 
