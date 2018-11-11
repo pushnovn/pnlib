@@ -99,7 +99,7 @@ namespace PN.Utils
                 return Internal.CreateDefaultObject(type, true);
 
             var decrypt = Crypt.AES.Decrypt(source, keyword);
-            return InternalNewtonsoft.Json.JsonConvert.DeserializeObject(decrypt, type);
+            return Newtonsoft.Json.JsonConvert.DeserializeObject(decrypt, type);
         }
 
         public static string ObjectToString(object value)
@@ -107,7 +107,7 @@ namespace PN.Utils
             if (value == null)
                 return null;
 
-            var json = InternalNewtonsoft.Json.JsonConvert.SerializeObject(value);
+            var json = Newtonsoft.Json.JsonConvert.SerializeObject(value);
             return Crypt.AES.Encrypt(json, keyword);
         }
 

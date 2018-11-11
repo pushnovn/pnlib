@@ -55,12 +55,12 @@ namespace PN.Network.IBM
         #region Get & Put methods
 
         public static string Get(string queueName) => ReadWriteMessageInQueue(queueName);
-        public static string Get(string queueName, out long evaluateTime) 
+        public static string Get(string queueName, out long evaluateTime)
             => ReadWriteMessageInQueue(queueName, null, out evaluateTime);
-        
-        public static void Put(string queueName, string message) 
+
+        public static void Put(string queueName, string message)
             => ReadWriteMessageInQueue(queueName, message ?? throw new Exception("Message cannot be null."));
-        public static void Put(string queueName, string message, out long evaluateTime) 
+        public static void Put(string queueName, string message, out long evaluateTime)
             => ReadWriteMessageInQueue(queueName, message ?? throw new Exception("Message cannot be null."), out evaluateTime);
 
         private static List<QueueConnection> QueueConnections = new List<QueueConnection>();
@@ -77,7 +77,7 @@ namespace PN.Network.IBM
             var stopwatch = Stopwatch.StartNew();
 
             var result = ReadWriteMessageInQueue(queueName, message);
-            
+
             stopwatch.Stop();
             evaluateTime = stopwatch.ElapsedMilliseconds;
 
@@ -141,6 +141,7 @@ namespace PN.Network.IBM
 
         #region Subscription
 
+        public static List<string> CurrentSubscriptions => Subscriptions.Select(s => s.Name).ToList();
         private static List<Subscription> Subscriptions = new List<Subscription>();
 
         private class Subscription
@@ -229,6 +230,14 @@ namespace PN.Network.IBM
 
         #region Set or Update Connection
 
+        public static bool IsConnected
+        {
+            get
+            {
+                var connection = GetConnection();
+                return connection == null ? false : connection.IsConnected;
+            }
+        }
         public static void UpdateConnection(Settings settings) => GetConnection(settings);
 
         private static MQQueueManager MqQueueManager;
@@ -250,7 +259,7 @@ namespace PN.Network.IBM
             {
                 OnSubscriptionEvent?.Invoke(new SubscriptionEventArgs() { Exception = ex, Type = SubscriptionEventType.Exception });
             }
-
+            var ttt = MqQueueManager?.IsConnected;
             return MqQueueManager;
         }
 

@@ -1,7 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Diagnostics;
 using System.Reflection;
-using InternalNewtonsoft.Json;
+using Newtonsoft.Json;
 using PN.Crypt;
 using System;
 using System.Linq;

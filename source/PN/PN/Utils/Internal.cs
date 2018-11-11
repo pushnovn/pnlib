@@ -51,7 +51,7 @@ namespace PN.Utils
                 instance
                     .GetType()
                     .GetProperty(prop_name)
-                    .SetValue(instance, TryParse ? InternalNewtonsoft.Json.Linq.JObject.Parse((string)value) : value);
+                    .SetValue(instance, TryParse ? Newtonsoft.Json.Linq.JObject.Parse((string)value) : value);
             }
             catch { }
             return instance;

@@ -323,12 +323,12 @@ namespace PN.Storage
             {
                 try
                 {
-                    return new SQLiteMethodResponse() { RowsCountAffected = command.ExecuteNonQuery() };
+                    return new SQLiteMethodResponse() { RowsCountAffected = command.ExecuteNonQuery(), SqlQuery = command.CommandText };
                 }
                 catch (Exception ex)
                 {
                     LastQueryException = ex;
-                    return new SQLiteMethodResponse() { Exception = ex };
+                    return new SQLiteMethodResponse() { Exception = ex, SqlQuery = command.CommandText };
                 }
             }
 
@@ -502,14 +502,14 @@ namespace PN.Storage
 
             static string GetPropertyNameInTable(PropertyInfo prop) => prop.GetCustomAttribute<SQLiteNameAttribute>()?.Name ?? prop.Name;
 
-            static SQLiteMethodResponse NewSQLiteResponse(Exception ex = null)
+            static SQLiteMethodResponse NewSQLiteResponse(Exception ex = null, string sqlQuery = "")
             {
                 if (ex == null)
-                    return new SQLiteMethodResponse() { RowsCountAffected = 0 };
+                    return new SQLiteMethodResponse() { RowsCountAffected = 0, SqlQuery = sqlQuery };
 
                 LastQueryException = ex;
 
-                return new SQLiteMethodResponse() { Exception = ex };
+                return new SQLiteMethodResponse() { Exception = ex, SqlQuery = sqlQuery };
             }
 
             static SQLiteConnection GetConnection()
@@ -694,6 +694,7 @@ namespace PN.Storage
     public class SQLiteMethodResponse
     {
         public int RowsCountAffected { get; set; } = 0;
+        public string SqlQuery { get; set; } = string.Empty;
         public Exception Exception { get; set; } = null;
     }
 }

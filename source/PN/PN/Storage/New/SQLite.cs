@@ -6,7 +6,7 @@ using System.Data.SQLite;
 using System.Diagnostics;
 using System.Collections;
 using System.Collections.Generic;
-using InternalNewtonsoft.Json;
+using Newtonsoft.Json;
 
 namespace PN.Storage.New
 {
@@ -153,7 +153,7 @@ namespace PN.Storage.New
             public List<Node> Children { get; set; }
         }
 
-        public static string NodeToJson(Node node) => InternalNewtonsoft.Json.JsonConvert.SerializeObject(node);
+        public static string NodeToJson(Node node) => Newtonsoft.Json.JsonConvert.SerializeObject(node);
 
         public static Node GenerateTree<T>() => GenerateTree(typeof(T));
 
@@ -254,7 +254,7 @@ namespace PN.Storage.New
 
             static string GetHashOfProperty(PropertyInfo prop)
             {
-                return InternalNewtonsoft.Json.JsonConvert.SerializeObject(prop);
+                return Newtonsoft.Json.JsonConvert.SerializeObject(prop);
             }
 
             #endregion
