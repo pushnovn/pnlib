@@ -10,7 +10,11 @@ using Newtonsoft.Json;
 
 namespace PN.Storage.New
 {
+#if DEBUG
     public class SQLite
+#else
+    internal class SQLite
+#endif
     {
         #region ExternalUse methods
 
@@ -63,10 +67,10 @@ namespace PN.Storage.New
             return (IList)Worker.ExecuteQuery(new object[] { str }, returnType);
         }
 
-        #endregion
+#endregion
 
 
-        #region Table's list
+#region Table's list
 
         [SQLiteName("sqlite_master")]
         public class sqlite_master
@@ -80,10 +84,10 @@ namespace PN.Storage.New
 
         public static List<sqlite_master> Tables => WhereAND("type", Is.Equals, "table").Get<sqlite_master>();
 
-        #endregion
+#endregion
 
 
-        #region Settings props and Utils methods
+#region Settings props and Utils methods
 
         public static string PathToDB { get; set; }
 
@@ -115,7 +119,7 @@ namespace PN.Storage.New
             };
         }
 
-        #endregion
+#endregion
 
 
 
@@ -192,11 +196,11 @@ namespace PN.Storage.New
             return node;
         }
 
-        #region Workerk
+#region Workerk
 
         internal class Worker
         {
-            #region Building Tree
+#region Building Tree
 
             internal static Node FullfillChildrenNodes(Node ParentNode, List<sqlite_master> tables = null)
             {
@@ -257,7 +261,7 @@ namespace PN.Storage.New
                 return Newtonsoft.Json.JsonConvert.SerializeObject(prop);
             }
 
-            #endregion
+#endregion
 
             internal static string delimeter = "_";
             internal static int deepJoin = 0;
@@ -470,7 +474,7 @@ namespace PN.Storage.New
 
                     switch (commandName)
                     {
-                        #region Get/GetCount method implementation
+#region Get/GetCount method implementation
 
                         case "Get":
                             command.CommandText = $"SELECT * FROM {tableName} {CreateWherePartOfSqlRequest(where, props)}";
@@ -492,9 +496,9 @@ namespace PN.Storage.New
                                 return -1;
                             }
 
-                        #endregion
+#endregion
 
-                        #region Set method implementation
+#region Set method implementation
 
                         case "Set":
 
@@ -525,9 +529,9 @@ namespace PN.Storage.New
 
                             return ExecuteNonQueryWithResponse(command);
 
-                        #endregion
+#endregion
 
-                        #region Update method implementation
+#region Update method implementation
 
                         case "Update":
 
@@ -564,9 +568,9 @@ namespace PN.Storage.New
 
                             return ExecuteNonQueryWithResponse(command);
 
-                        #endregion
+#endregion
 
-                        #region Delete method implementation
+#region Delete method implementation
 
                         case "Delete":
 
@@ -601,9 +605,9 @@ namespace PN.Storage.New
 
                             return ExecuteNonQueryWithResponse(command);
 
-                        #endregion
+#endregion
 
-                        #region Truncate method implementation
+#region Truncate method implementation
 
                         case "Truncate":
                             //   TRUNCATE[TABLE] tbl_name
@@ -612,9 +616,9 @@ namespace PN.Storage.New
 
                             return ExecuteNonQueryWithResponse(command);
 
-                        #endregion
+#endregion
 
-                        #region ExecuteQuery method implementation
+#region ExecuteQuery method implementation
 
                         case "ExecuteString":
 
@@ -625,7 +629,7 @@ namespace PN.Storage.New
                                 return ExecuteNonQueryWithResponse(command);
                             else
                                 return GetResultsFromDB(command, resultType, GetSQLitePropertiesFromType(resultType));
-                            #endregion
+#endregion
                     }
 
                     return NewSQLiteResponse(new ArgumentException($"Command '{commandName}' not found."));
@@ -886,10 +890,10 @@ namespace PN.Storage.New
             }
         }
 
-        #endregion
+#endregion
 
 
-        #region Attributes
+#region Attributes
 
         /// <summary>
         /// Name of the table or the field in SQLite DB
@@ -911,7 +915,7 @@ namespace PN.Storage.New
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
         public class SQLiteIgnoreAttribute : Attribute { }
 
-        #endregion
+#endregion
     }
 
     public enum Is

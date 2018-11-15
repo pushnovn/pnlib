@@ -26,7 +26,7 @@ namespace PN.Network.IBM
             public string Password { get; set; }
         }
 
-        public static void ExtractDll(bool rewriteFileIfExists = true)
+        private static void ExtractDll(bool rewriteFileIfExists = true)
         {
             if (File.Exists("amqmdnet.dll") && rewriteFileIfExists == false)
                 return;
