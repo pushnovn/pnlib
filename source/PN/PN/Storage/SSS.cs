@@ -6,6 +6,8 @@ using PN.Crypt;
 using System;
 using System.Linq;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 namespace PN.Storage
@@ -13,7 +15,7 @@ namespace PN.Storage
     public abstract class SSS
     {
         #region Extern methods
-
+        
         protected abstract string Get(string key);
         protected abstract void Set(string key, string value);
 
@@ -24,27 +26,28 @@ namespace PN.Storage
         protected static void Base(object value) => BasePrivate(value);
 
         #endregion
-        
+
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static object BasePrivate(object value = null, MethodData methodInfo = null)
         {
             methodInfo = methodInfo ?? GetMethodInfo();
-            
+
             var method = GetInternalMethodByName(methodInfo.IsGet, methodInfo.ReflectedType);
 
             return methodInfo.IsGet ?
-                   StringToObject((string)method.Method.Invoke(method.MethodInstance, new object[] { methodInfo.ReflectedType.FullName + Splitter + methodInfo.Name }), methodInfo.CryptKey, methodInfo.Type) :
+                   StringToObject((string)method.Method.Invoke(method.MethodInstance, new object[] { methodInfo.ReflectedType.FullName + Splitter + methodInfo.Name }), methodInfo.CryptKey, methodInfo.Type, methodInfo) :
                    method.Method.Invoke(method.MethodInstance, new object[] { methodInfo.ReflectedType.FullName + Splitter + methodInfo.Name, ObjectToString(value, methodInfo.CryptKey) });
         }
-        
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
         private static MethodData GetMethodInfo()
         {
             var caller = new StackTrace().GetFrame(3).GetMethod() as MethodInfo;
-            
+
             var propertyInfo = caller.ReflectedType.GetProperties(
                 BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance)
                                        .FirstOrDefault(p => p.Name == caller.Name.Remove(0, 4));
-            
+
             var useDefaultCryptKey = propertyInfo?.GetCustomAttributes()?.OfType<NeedAuthAttribute>()?.FirstOrDefault() == null;
 
             if (useDefaultCryptKey == false && CryptKeySettings.Any(i => i.InheritType == caller.ReflectedType) == false)
@@ -53,7 +56,7 @@ namespace PN.Storage
             var real_key = useDefaultCryptKey ?
                 $"{caller.ReflectedType.FullName}{Splitter}{caller.Name.Remove(0, 4)}" :
                 CryptKeySettings.FirstOrDefault(i => i.InheritType == caller.ReflectedType).CryptKeyHash;
-            
+
             return new MethodData()
             {
                 Name = caller.Name.Remove(0, 4),
@@ -97,14 +100,43 @@ namespace PN.Storage
             field?.SetValue(null, newValue);
         }
 
-        private static object StringToObject(string source, string keyToDecrypt, Type type)
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static object StringToObject(string source, string keyToDecrypt, Type type, MethodData methodInfo = null)
         {
             if (string.IsNullOrEmpty(source))
                 return Utils.Internal.CreateDefaultObject(type, true);
 
             var decrypt = AES.Decrypt(source, keyToDecrypt);
-            return JsonConvert.DeserializeObject(decrypt, type);
+            var obj = JsonConvert.DeserializeObject(decrypt, type);
+
+            var eventInfo = type.GetEvent(nameof(ObservableCollection<int>.CollectionChanged), 
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+            
+            if (eventInfo == null || methodInfo == null)
+                return obj;
+
+            MethodDataStorageByObjectGUIDs.Add(obj.GetGUID(), methodInfo);
+
+            Action<object, NotifyCollectionChangedEventArgs> CollectionChangedAction = 
+                (object sourceObject, NotifyCollectionChangedEventArgs eventArgs) =>
+            {
+                var sourceObjectGUID = sourceObject.GetGUID();
+
+                var methodInfo2 = MethodDataStorageByObjectGUIDs[sourceObjectGUID];
+
+                methodInfo2.IsGet = false;
+
+                BasePrivate(sourceObject, methodInfo2);
+            };
+            
+            var del = Delegate.CreateDelegate(eventInfo.EventHandlerType, null, CollectionChangedAction.Method);
+            
+            eventInfo.AddEventHandler(obj, del);
+
+            return obj;
         }
+
+        private static Dictionary<Guid, MethodData> MethodDataStorageByObjectGUIDs = new Dictionary<Guid, MethodData>();
 
         private static string ObjectToString(object value, string keyToEncrypt)
         {
@@ -130,7 +162,7 @@ namespace PN.Storage
 
             return (methodInfo, methodInstance);
         }
-        
+
         public static bool Auth<TInheritSSS>(string password)
         {
             if (string.IsNullOrEmpty(password))
@@ -142,9 +174,9 @@ namespace PN.Storage
             var setMethod = GetInternalMethodByName(false, typeof(TInheritSSS));
 
             var pathToAttempSetting = AES.SHA256Hash(typeof(TInheritSSS).FullName + "AttempSetting");
-            var attempSettingString = (string) getMethod.Method.Invoke(getMethod.MethodInstance, new object[] { pathToAttempSetting });
+            var attempSettingString = (string)getMethod.Method.Invoke(getMethod.MethodInstance, new object[] { pathToAttempSetting });
             var attempSetting = new AttempSetting() { InheritType = typeof(TInheritSSS) };
-       
+
             // Если AttempSetting нет, то:
             if (attempSettingString == null)
             {
@@ -167,8 +199,8 @@ namespace PN.Storage
             // Если AttempSetting есть, то:
             else
             {
-                attempSetting = (AttempSetting) StringToObject(attempSettingString, pathToAttempSetting, typeof(AttempSetting));
-              
+                attempSetting = (AttempSetting)StringToObject(attempSettingString, pathToAttempSetting, typeof(AttempSetting));
+
                 //// Вызываем метод CheckPassword (внутренний):
                 //// Пароль верен:
                 if (CheckPassword(password, attempSetting))
@@ -223,7 +255,7 @@ namespace PN.Storage
         public class IsResistantToSoftRemovalAttribute : Attribute { }
 
         #endregion
-        
+
         private static bool CheckPassword(string password, AttempSetting attempSetting)
         {
             try
@@ -278,7 +310,7 @@ namespace PN.Storage
 
             if (filteredProps.Count == 0)
                 return;
-            
+
             var methodInfo = GetInternalMethodByName(nameof(Set), typeof(T));
 
             foreach (var prop in filteredProps)
@@ -290,14 +322,14 @@ namespace PN.Storage
 
             CryptKeySettings[CryptKeySettings.IndexOf(CryptKeySettings.FirstOrDefault(s => s.InheritType == typeof(T)))].CryptKey = newPassword;
 
-            
+
             // ================================================================================
             var getMethod = GetInternalMethodByName(true, typeof(T));
             var setMethod = GetInternalMethodByName(false, typeof(T));
 
             var pathToAttempSetting = AES.SHA256Hash(typeof(T).FullName + "AttempSetting");
             var attempSettingString = (string)getMethod.Method.Invoke(getMethod.MethodInstance, new object[] { pathToAttempSetting });
-               
+
             var attempSetting = (AttempSetting)StringToObject(attempSettingString, pathToAttempSetting, typeof(AttempSetting));
             attempSetting.LastUpdateDate = AES.Encrypt(DateTime.Now.ToString(), AES.SHA256Hash(newPassword));
             setMethod.Method.Invoke(setMethod.MethodInstance, new object[] { pathToAttempSetting, ObjectToString(attempSetting, pathToAttempSetting) });
@@ -307,7 +339,7 @@ namespace PN.Storage
         public static void ClearAll<TInheritSSS>(bool SoftClearing = false)
         {
             var methodInfo = GetInternalMethodByName(nameof(Set), typeof(TInheritSSS));
-            
+
             foreach (var prop in typeof(TInheritSSS).GetProperties(BindingFlags.Public | BindingFlags.Static))
             {
                 if (SoftClearing && prop?.GetCustomAttributes()?.OfType<IsResistantToSoftRemovalAttribute>()?.FirstOrDefault() != null)
@@ -317,7 +349,7 @@ namespace PN.Storage
 
                 methodInfo.Method.Invoke(methodInfo.MethodInstance, new object[] { typeof(TInheritSSS).FullName + Splitter + prop.Name, null });
             }
-            
+
             var pathToAttempSetting = AES.SHA256Hash(typeof(TInheritSSS).FullName + "AttempSetting");
             methodInfo.Method.Invoke(methodInfo.MethodInstance, new object[] { pathToAttempSetting, null });
 
@@ -329,10 +361,10 @@ namespace PN.Storage
         private static List<CryptKeySetting> CryptKeySettings = new List<CryptKeySetting>();
 
         public static Indexer<TValue, TInherit> Index<TValue, TInherit>() => new Indexer<TValue, TInherit>();
-        
+
         public class Indexer<TValue, TInherit>
         {
-            public TValue this [object key]
+            public TValue this[object key]
             {
                 get => (TValue)BasePrivate(null, GetMethodData(JsonConvert.SerializeObject(key), true));
                 set => BasePrivate(value, GetMethodData(JsonConvert.SerializeObject(key), false));
@@ -351,7 +383,7 @@ namespace PN.Storage
             }
         }
     }
-    
+
     internal class MethodData
     {
         public string Name { get; set; }
@@ -368,12 +400,25 @@ namespace PN.Storage
         public int CurrentCount { get; set; }
         public string LastUpdateDate { get; set; }
     }
-    
+
     internal class CryptKeySetting
     {
         public Type InheritType { get; set; }
         public string CryptKeyHash { get => AES.SHA256Hash(CryptKey); }
         public string CryptKey { get; set; }
+    }
+
+    internal static class MyExtensions
+    {
+        static Dictionary<object, Guid> objects_guids = new Dictionary<object, Guid>();
+
+        public static Guid GetGUID(this object o)
+        {
+            if (objects_guids.ContainsKey(o))
+                return objects_guids[o];
+
+            return objects_guids[o] = Guid.NewGuid();
+        }
     }
 
     //public interface ISSS

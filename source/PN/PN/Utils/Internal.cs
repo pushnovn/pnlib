@@ -1,9 +1,12 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 /// <summary>
 /// Some usefull utils methods.
@@ -50,10 +53,20 @@ namespace PN.Utils
             {
                 instance
                     .GetType()
-                    .GetProperty(prop_name)
+                    .GetProperty(prop_name)?
                     .SetValue(instance, TryParse ? Newtonsoft.Json.Linq.JObject.Parse((string)value) : value);
             }
             catch { }
+            
+            try
+            {
+                instance
+                    .GetType()
+                    .GetField(prop_name)?
+                    .SetValue(instance, TryParse ? Newtonsoft.Json.Linq.JObject.Parse((string)value) : value);
+            }
+            catch { }
+
             return instance;
         }
 

@@ -3,10 +3,12 @@ using PN.Network;
 using PN.Storage;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using static PN.Network.HTTP;
 using static PN.Network.HTTP.Entities;
@@ -28,7 +30,7 @@ namespace ConsoleApp1
             public List<string> ListV { get; set; }
         }
         
-        [PN.Storage.New.SQLite.SQLiteName("Posts")]
+  //      [PN.Storage.New.SQLite.SQLiteName("Posts")]
         class PostSingle
         {
             public int id { get; set; }
@@ -36,7 +38,7 @@ namespace ConsoleApp1
             public User Author { get; set; }
         }
 
-        [PN.Storage.New.SQLite.SQLiteName("Posts")]
+   //     [PN.Storage.New.SQLite.SQLiteName("Posts")]
         class PostMulti
         {
             public int id { get; set; }
@@ -92,6 +94,42 @@ namespace ConsoleApp1
 
         static void Main(string[] args)
         {
+            var testColl = new ObservableCollection<string>()
+                //.ToList()
+                ;
+            testColl.Add("111");
+            SSS3.TestCollection = testColl;
+
+
+            Console.WriteLine(SSS3.TestCollection.Count);
+
+            SSS3.TestCollection.Add("123");
+
+            var lolol___ = SSS3.TestCollection;
+            lolol___.Add("777");
+            lolol___.Add("888");
+
+
+
+            var tttttttt = SSS3.TestCollection;
+            Console.WriteLine(SSS3.TestCollection.Count);
+
+            tttttttt.Add("ssss");
+            Console.WriteLine(SSS3.TestCollection.Count);
+            //SSS3.TestCollection.Add("456");
+            //SSS3.TestCollection.Add("789");
+
+            //var lolol = SSS3.TestCollection;
+
+            //SSS3.TestCollection.Clear();
+
+
+
+            Console.ReadKey();
+
+
+
+
             var air1 = new Air()
             {
                 Number = "BDF3546",
@@ -146,10 +184,10 @@ namespace ConsoleApp1
 
 
 
-            PN.Storage.New.SQLite.PathToDB = @"C:\Temp\SQLite\sqlite-test.db";
+            //PN.Storage.New.SQLite.PathToDB = @"C:\Temp\SQLite\sqlite-test.db";
 
 
-            var nodeSingle = PN.Storage.New.SQLite.GenerateTree<User>();
+            //var nodeSingle = PN.Storage.New.SQLite.GenerateTree<User>();
 
 
 
@@ -204,7 +242,7 @@ namespace ConsoleApp1
 
             SQLite.PathToDB = "test.db";
 
-            PN.Network.IBM.MQ.ExtractDll();
+            //PN.Network.IBM.MQ.ExtractDll();
 
             var tables = SQLite.Tables;
 
@@ -716,6 +754,14 @@ namespace ConsoleApp1
 
         [NeedAuth]
         public static TestModel ExampleTest3Model { get => Base(); set => Base(value); }
+
+        public static ObservableCollection<string> TestCollection {
+
+        //   [MethodImpl(MethodImplOptions.NoInlining)]
+            get => Base();
+
+       //     [MethodImpl(MethodImplOptions.NoInlining)]
+            set => Base(value); }
     }
 
 
