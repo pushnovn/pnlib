@@ -15,13 +15,13 @@ namespace PN.Storage
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static IList Get(Type type)
         {
-            return (IList) Worker.ExecuteQuery(null, type);
+            return (IList)Worker.ExecuteQuery(null, type);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static List<T> Get<T>()
         {
-            return (List<T>) Worker.ExecuteQuery(null, typeof(T));
+            return (List<T>)Worker.ExecuteQuery(null, typeof(T));
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -33,48 +33,48 @@ namespace PN.Storage
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static SQLiteMethodResponse Set(params object[] data)
         {
-            return (SQLiteMethodResponse) Worker.ExecuteQuery(data);
+            return (SQLiteMethodResponse)Worker.ExecuteQuery(data);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static SQLiteMethodResponse Update(params object[] data)
         {
-            return (SQLiteMethodResponse) Worker.ExecuteQuery(data);
+            return (SQLiteMethodResponse)Worker.ExecuteQuery(data);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static SQLiteMethodResponse Delete(params object[] data)
         {
-            return (SQLiteMethodResponse) Worker.ExecuteQuery(data);
+            return (SQLiteMethodResponse)Worker.ExecuteQuery(data);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static SQLiteMethodResponse Truncate<T>(params object[] data)
         {
-            return (SQLiteMethodResponse) Worker.ExecuteQuery(data, typeof(T));
+            return (SQLiteMethodResponse)Worker.ExecuteQuery(data, typeof(T));
         }
 
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static SQLiteMethodResponse ExecuteString(string str)
         {
-            return (SQLiteMethodResponse) Worker.ExecuteQuery(new object[] { str });
+            return (SQLiteMethodResponse)Worker.ExecuteQuery(new object[] { str });
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static List<T> ExecuteString<T>(string str)
         {
-            return (List<T>) Worker.ExecuteQuery(new object[] { str }, typeof(T));
+            return (List<T>)Worker.ExecuteQuery(new object[] { str }, typeof(T));
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static IList ExecuteString(string str, Type returnType)
         {
-            return (IList) Worker.ExecuteQuery(new object[] { str }, returnType);
+            return (IList)Worker.ExecuteQuery(new object[] { str }, returnType);
         }
 
         #region Table's list
-        
+
         [SQLiteName("sqlite_master")]
         public class sqlite_master
         {
@@ -120,7 +120,7 @@ namespace PN.Storage
                 ConditionType = condType,
             };
         }
-        
+
 
         internal class Worker
         {
@@ -129,7 +129,7 @@ namespace PN.Storage
             internal static object ExecuteQuery(object[] data = null, Type resultType = null, WhereCondition where = null)
             {
                 var commandName = GetCurrentMethodName();
-                                
+
                 data = Utils.Converters.ConvertArrayWithSingleListToArrayOfItems(data);
 
                 if (commandName.Equals("Truncate") == false)
@@ -198,16 +198,16 @@ namespace PN.Storage
                                 {
                                     var value = prop.GetValue(obj, null);
                                     value = (value != null && value is string) ? (value as string).Replace("\'", "\'\'") : value;
-                                    
+
                                     if (prop.PropertyType.IsValueType == false && prop.PropertyType != typeof(string))
                                         value = Utils.Converters.ObjectToString(value);
-                                    
+
                                     strWithValues += value == null ? "NULL," : $"'{value}',";
                                 }
 
                                 strWithValues = strWithValues.TrimEnd(',') + "),";
                             }
-                            
+
                             command.CommandText = tableToInsertPartOfQuery + strWithFields + strWithValues.TrimEnd(',') + ";";
 
                             return ExecuteNonQueryWithResponse(command);
@@ -233,7 +233,7 @@ namespace PN.Storage
                                     value = value != null && value is string ? (value as string).Replace("\'", "\'\'") : value;
 
                                     var id = resultType.GetProperty("id", bindingFlags | BindingFlags.IgnoreCase).GetValue(obj, null);
-                                    
+
                                     if (prop.PropertyType.IsValueType == false && prop.PropertyType != typeof(string))
                                         value = Utils.Converters.ObjectToString(value);
 
@@ -244,7 +244,7 @@ namespace PN.Storage
 
                                 groupString += "END,";
                             }
-                            
+
                             groupString = $"{groupString.TrimEnd(',')} WHERE id IN ({idsEnum.TrimEnd(',')});";
 
                             command.CommandText = tableToInsertPartOfQueryForUpdateMethod + groupString;
@@ -287,7 +287,7 @@ namespace PN.Storage
                             command.CommandText = $"DELETE FROM {tableName} {CreateWherePartOfSqlRequest(where, props)}";
 
                             return ExecuteNonQueryWithResponse(command);
-                            
+
                         #endregion
 
                         #region Truncate method implementation
@@ -312,7 +312,7 @@ namespace PN.Storage
                                 return ExecuteNonQueryWithResponse(command);
                             else
                                 return GetResultsFromDB(command, resultType, GetSQLitePropertiesFromType(resultType));
-                        #endregion
+                            #endregion
                     }
 
                     return NewSQLiteResponse(new ArgumentException($"Command '{commandName}' not found."));
@@ -446,22 +446,25 @@ namespace PN.Storage
                 {
                     using (SQLiteDataReader sqliteDataReader = command.ExecuteReader())
                     {
-                        // Создаём лист типов, которые надо вернуть
-                        var result = Utils.Internal.CreateList(resultType);
-                        // Пробегаемся по всем строкам результата
+                        var resultList = Utils.Internal.CreateList(resultType);
+                     
                         while (sqliteDataReader.Read())
                         {
-                            // Для каждой строки создаём свой объект нужного нам типа
                             var resObj = Activator.CreateInstance(resultType);
 
                             foreach (var prop in props ?? GetSQLitePropertiesFromType(resultType))
                             {
-                                //Заносим значения ячеек в наш новый объект
+                                var propertyNameInTable = GetPropertyNameInTable(prop);
+                                var objectFromSQLiteDataReader = sqliteDataReader[propertyNameInTable];
+
+                                if (objectFromSQLiteDataReader == DBNull.Value)
+                                {
+                                    prop.SetValue(resObj, Utils.Internal.CreateDefaultObject(prop.PropertyType), null);
+                                    continue;
+                                }
+
                                 try
                                 {
-                                    var propertyNameInTable = GetPropertyNameInTable(prop);
-                                    var objectFromSQLiteDataReader = sqliteDataReader[propertyNameInTable];
-
                                     var objectToSetToProperty = (prop.PropertyType.IsValueType || prop.PropertyType == typeof(string)) ?
                                         Convert.ChangeType(objectFromSQLiteDataReader, prop.PropertyType) :
                                         Utils.Converters.StringToObject((string)objectFromSQLiteDataReader, prop.PropertyType);
@@ -473,12 +476,11 @@ namespace PN.Storage
                                     prop.SetValue(resObj, Utils.Internal.CreateDefaultObject(prop.PropertyType), null);
                                 }
                             }
-
-                            // И, наконец, добавляем полученный объект в лист с результатами
-                            result.Add(resObj);
+                            
+                            resultList.Add(resObj);
                         }
 
-                        return result;
+                        return resultList;
                     }
                 }
                 catch (Exception ex)
@@ -595,7 +597,7 @@ namespace PN.Storage
         /// </summary>
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
         public class SQLiteIgnoreAttribute : Attribute { }
-        
+
         #endregion
 
     }
@@ -635,7 +637,7 @@ namespace PN.Storage
         ///<summary>Get bool type as parameter</summary>
         Reversed,
     }
-    
+
     public class WhereCondition
     {
         public WhereCondition Where(string propertyName, Is operation, params object[] parameters)
@@ -680,15 +682,15 @@ namespace PN.Storage
         internal bool Reverse = false;
         internal ConditionTypes ConditionType = ConditionTypes.AND;
 
-        public List<T> Get<T>() => (List<T>) SQLite.Worker.ExecuteQuery(null, typeof(T), this);
+        public List<T> Get<T>() => (List<T>)SQLite.Worker.ExecuteQuery(null, typeof(T), this);
 
         public IList Get(Type type) => (IList)SQLite.Worker.ExecuteQuery(null, type, this);
 
-        public int GetCount<T>() => (int) SQLite.Worker.ExecuteQuery(null, typeof(T), this);
+        public int GetCount<T>() => (int)SQLite.Worker.ExecuteQuery(null, typeof(T), this);
 
-        public SQLiteMethodResponse Delete<T>(params object[] data) => (SQLiteMethodResponse) SQLite.Worker.ExecuteQuery(data, typeof(T), this);
+        public SQLiteMethodResponse Delete<T>(params object[] data) => (SQLiteMethodResponse)SQLite.Worker.ExecuteQuery(data, typeof(T), this);
 
-        public SQLiteMethodResponse Delete(Type type, params object[] data) => (SQLiteMethodResponse) SQLite.Worker.ExecuteQuery(data, type, this);
+        public SQLiteMethodResponse Delete(Type type, params object[] data) => (SQLiteMethodResponse)SQLite.Worker.ExecuteQuery(data, type, this);
     }
 
     public class SQLiteMethodResponse
