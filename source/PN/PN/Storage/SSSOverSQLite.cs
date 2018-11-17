@@ -7,14 +7,14 @@ namespace PN.Storage
     {
         protected override string Get(string key)
         {
-            var entities = SQLite.WhereAND(nameof(SSSEntity.Key), Is.Equals, key).Get<SSSEntity>();
+            var entities = SQLite.Where(nameof(SSSEntity.Key), Is.Equals, key).Get<SSSEntity>();
 
             return entities.FirstOrDefault()?.Value;
         }
 
         protected override void Set(string key, string value)
         {
-            var entities = SQLite.WhereAND(nameof(SSSEntity.Key), Is.Equals, key).Get<SSSEntity>();
+            var entities = SQLite.Where(nameof(SSSEntity.Key), Is.Equals, key).Get<SSSEntity>();
 
             if (entities.FirstOrDefault() == null)
             {

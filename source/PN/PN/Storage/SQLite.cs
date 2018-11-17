@@ -7,11 +7,16 @@ using System.Diagnostics;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Linq.Expressions;
+using static PN.Storage.WhereCondition;
+using System.Text;
 
 namespace PN.Storage
 {
     public class SQLite
     {
+        #region Interface methods
+
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static IList Get(Type type)
         {
@@ -73,6 +78,15 @@ namespace PN.Storage
             return (IList)Worker.ExecuteQuery(new object[] { str }, returnType);
         }
 
+        #endregion
+
+
+        #region Global Properties
+
+        public static string PathToDB { get; set; }
+
+        public static Exception LastQueryException;
+
         #region Table's list
 
         [SQLiteName("sqlite_master")]
@@ -85,41 +99,34 @@ namespace PN.Storage
             public string sql { get; set; }
         }
 
-        public static List<sqlite_master> Tables => WhereAND("type", Is.Equals, "table").Get<sqlite_master>();
+        public static List<sqlite_master> Tables => Where("type", Is.Equals, "table").Get<sqlite_master>();
+
+        #endregion
 
         #endregion
 
 
-
-        public static string PathToDB { get; set; }
-
-        public static Exception LastQueryException;
-
-
-        public static WhereCondition WhereAND(string propertyName, Is operation, params object[] parameters)
+        #region Where
+        public static WhereCondition Where<T>(Expression<Func<T, dynamic>> expression)
         {
-            return WherePrivate(WhereCondition.ConditionTypes.AND, propertyName, operation, parameters);
+            return AddConditionAndReturnSelf(new Condition(ConditionTypes.WHERE, expression));
         }
-        public static WhereCondition WhereOR(string propertyName, Is operation, params object[] parameters)
+
+        public static WhereCondition Where<T>(Expression<Func<T, object>> member, Is operation, params object[] parameters)
         {
-            return WherePrivate(WhereCondition.ConditionTypes.OR, propertyName, operation, parameters);
+            return AddConditionAndReturnSelf(new Condition(ConditionTypes.WHERE, Utils.Converters.ExpressionToString(member), operation, parameters));
         }
-        private static WhereCondition WherePrivate(WhereCondition.ConditionTypes condType, string propertyName, Is operation, params object[] parameters)
+
+        public static WhereCondition Where(string propertyName, Is operation, params object[] parameters)
         {
-            return new WhereCondition()
-            {
-                Conditions = new List<WhereCondition.Condition>()
-                {
-                    new WhereCondition.Condition
-                    {
-                        PropertyName = propertyName,
-                        Operation = operation,
-                        Parameters = parameters,
-                    },
-                },
-                ConditionType = condType,
-            };
+            return AddConditionAndReturnSelf(new Condition(ConditionTypes.WHERE, propertyName, operation, parameters));
         }
+
+        private static WhereCondition AddConditionAndReturnSelf(Condition condition)
+        {
+            return new WhereCondition(condition);
+        }
+        #endregion
 
 
         internal class Worker
@@ -281,7 +288,7 @@ namespace PN.Storage
                                     ids.Add(dat.GetType().IsValueType ? dat : idCaseSensitiveProperty.GetValue(dat));
                                 }
 
-                                where = new WhereCondition().Where(idCaseSensitiveProperty.Name, Is.In, ids);
+                                where = Where(idCaseSensitiveProperty.Name, Is.In, ids);
                             }
 
                             command.CommandText = $"DELETE FROM {tableName} {CreateWherePartOfSqlRequest(where, props)}";
@@ -327,8 +334,7 @@ namespace PN.Storage
                 }
                 catch (Exception ex)
                 {
-                    LastQueryException = ex;
-                    return new SQLiteMethodResponse() { Exception = ex, SqlQuery = command.CommandText };
+                    return new SQLiteMethodResponse() { Exception = LastQueryException = ex, SqlQuery = command.CommandText };
                 }
             }
 
@@ -339,72 +345,77 @@ namespace PN.Storage
 
                 var commandText = string.Empty;
 
-                for (int i = 0; i < where.Conditions.Count; i++)
-                {
-                    var condition = where.Conditions[i];
+                foreach (var condition in where.Conditions)
+                {                    
+                    if (condition.Expression != null)
+                    {
+                        commandText += $"{condition.ConditionType} {ExpressionToSQLTranslator.Translate(condition.Expression)}";
+                        continue;
+                    }
 
-                    if (condition.Parameters.Length < 1)
+                    if (condition.Parameters.Length < 1 || condition.Parameters.Any(p => p == null))
                         continue;
 
-                    commandText += i == 0 ? " WHERE (" : string.Empty;
+                    var subCommandText = string.Empty;
+
+                    if (condition.Operation != Is.Reversed && condition.Operation != Is.LimitedBy)
+                        subCommandText += $" {condition.ConditionType} (";
 
                     condition.Parameters = Utils.Converters.ConvertArrayWithSingleListToArrayOfItems(condition.Parameters);
                     var quote = condition.Parameters[0] is string ? "'" : string.Empty;
                     switch (condition.Operation)
                     {
-                        case Is.BiggerThen:
-                        case Is.LessThen:
+                        case Is.BiggerThan:
+                        case Is.BiggerThanOrEquals:
+                        case Is.LessThan:
+                        case Is.LessThanOrEquals:
                         case Is.Equals:
                         case Is.NotEquals:
-                            if (condition.Parameters.Length > 0)
-                                commandText += $"{condition.PropertyName} " +
-                                                WhereCondition.SimpleOperators[condition.Operation] +
-                                               $" {quote}{condition.Parameters[0]}{quote}";
+                            subCommandText += $"{condition.PropertyName} " +
+                                $"{SimpleOperators[condition.Operation]} " +
+                                $"{quote}{condition.Parameters[0]}{quote}";
                             break;
 
                         case Is.Like:
-                            if (condition.Parameters.Length > 0)
-                                commandText += $"{condition.PropertyName} LIKE {quote}%{condition.Parameters[0]}%{quote}";
+                            subCommandText += $"{condition.PropertyName} LIKE {quote}%{condition.Parameters[0]}%{quote}";
                             break;
 
                         case Is.Between:
                             if (condition.Parameters.Length > 1)
-                                commandText += $"{condition.PropertyName} BETWEEN {condition.Parameters[0]} AND {condition.Parameters[1]}";
+                                subCommandText += $"{condition.PropertyName} BETWEEN {condition.Parameters[0]} AND {condition.Parameters[1]}";
                             break;
 
                         case Is.In:
-                            if (condition.Parameters.Length > 0)
+                            subCommandText += $"{condition.PropertyName} IN (";
+                            foreach (var arrItem in condition.Parameters)
                             {
-                                commandText += $"{condition.PropertyName} IN (";
-                                foreach (var arrItem in condition.Parameters)
-                                    commandText += $"{quote}{arrItem}{quote},";
-                                commandText = commandText.TrimEnd(',') + ")";
+                                subCommandText += $"{quote}{arrItem}{quote},";
                             }
-
+                            subCommandText = subCommandText.TrimEnd(',') + ")";
                             break;
 
                         case Is.Contains:
                             if (string.IsNullOrEmpty(condition.PropertyName))
                                 foreach (var prop in props)
                                     foreach (var subStr in condition.Parameters)
-                                        commandText += " " + GetPropertyNameInTable(prop) + " LIKE '%" + subStr + "%' OR";
+                                        subCommandText += " " + GetPropertyNameInTable(prop) + " LIKE '%" + subStr + "%' OR";
                             else
                                 foreach (var arrItem in (condition.Parameters[0] is IList)
                                         ? condition.Parameters[0] as IList
                                         : condition.Parameters)
-                                    commandText += " " + condition.PropertyName + " LIKE '%" + arrItem + "%' OR";
+                                    subCommandText += " " + condition.PropertyName + " LIKE '%" + arrItem + "%' OR";
 
-                            if (commandText.Trim().EndsWith("OR"))
-                                commandText = commandText.Trim().Remove(commandText.Length - 3);
+                            if (subCommandText.Trim().EndsWith("OR"))
+                                subCommandText = subCommandText.Trim().Remove(subCommandText.Length - 3);
                             break;
 
                         case Is.ContainsAnythingFrom:
                             foreach (var prop in props)
                                 foreach (var subStr in condition.Parameters)
-                                    commandText += $" {GetPropertyNameInTable(prop)} LIKE '%{subStr}%' OR";
+                                    subCommandText += $" {GetPropertyNameInTable(prop)} LIKE '%{subStr}%' OR";
 
-                            if (commandText.Trim().EndsWith("OR"))
-                                commandText = commandText.Trim().Remove(commandText.Length - 3);
+                            if (subCommandText.Trim().EndsWith("OR"))
+                                subCommandText = subCommandText.Trim().Remove(subCommandText.Length - 3);
                             break;
 
                         case Is.LimitedBy:
@@ -417,16 +428,14 @@ namespace PN.Storage
                     }
 
                     if (condition.Operation != Is.Reversed && condition.Operation != Is.LimitedBy)
-                        commandText += $") {where.ConditionType} (";
+                        subCommandText += ")";
+
+                    commandText += subCommandText;
                 }
+                
+                commandText += where.Reverse ? " ORDER BY id DESC " : " ";
 
-                if (where.Conditions.Count != 0)
-                    commandText = commandText.Trim().Substring(0, commandText.Length - $" {where.ConditionType} (".Length);
-
-                if (where.Reverse)
-                    commandText += " ORDER BY id DESC";
-
-                commandText += where.Limit > -1 ? $" LIMIT {where.Limit};" : ";";
+                commandText += where.Limit > -1 ? $"LIMIT {where.Limit};" : ";";
 
                 return commandText;
             }
@@ -447,7 +456,7 @@ namespace PN.Storage
                     using (SQLiteDataReader sqliteDataReader = command.ExecuteReader())
                     {
                         var resultList = Utils.Internal.CreateList(resultType);
-                     
+
                         while (sqliteDataReader.Read())
                         {
                             var resObj = Activator.CreateInstance(resultType);
@@ -476,7 +485,7 @@ namespace PN.Storage
                                     prop.SetValue(resObj, Utils.Internal.CreateDefaultObject(prop.PropertyType), null);
                                 }
                             }
-                            
+
                             resultList.Add(resObj);
                         }
 
@@ -516,36 +525,7 @@ namespace PN.Storage
 
             static SQLiteConnection GetConnection()
             {
-                //if (Utils.Internal.CurrentPlatformIsWindows)
-                //{
-                //    if (Directory.Exists("x64") == false)
-                //    {
-                //        Directory.CreateDirectory("x64");
-                //    }
-
-                //    if (Directory.Exists("x86") == false)
-                //    {
-                //        Directory.CreateDirectory("x86");
-                //    }
-
-                //    //if (File.Exists("System.Data.SQLite.dll") == false)
-                //    //{
-                //    //    Utils.Utils.Internal.WriteResourceToFile("PN.SQLiteDlls.System.Data.SQLite.dll", "System.Data.SQLite.dll");
-                //    //}
-
-                //    if (File.Exists("x64/SQLite.Interop.dll") == false)
-                //    {
-                //        Utils.Internal.WriteResourceToFile("PN.SQLiteDlls.x64.SQLite.Interop.dll", "x64/SQLite.Interop.dll");
-                //    }
-
-                //    if (File.Exists("x86/SQLite.Interop.dll") == false)
-                //    {
-                //        Utils.Internal.WriteResourceToFile("PN.SQLiteDlls.x86.SQLite.Interop.dll", "x86/SQLite.Interop.dll");
-                //    }
-                //}
-
                 var path = Path.GetFullPath(PathToDB ?? throw new ArgumentException("Path to DB (SQLite) is not set!"));
-                // var pass = string.Empty;
 
                 return new SQLiteConnection($"Data Source={path};Version=3;");
             }
@@ -575,6 +555,451 @@ namespace PN.Storage
             }
         }
 
+        #region Expression To SQL
+        
+        public class ExpressionToSQLTranslator : ExpressionVisitor
+        {
+            private StringBuilder sb;
+
+            public int? Skip { get; private set; } = null;
+
+            public int? Take { get; private set; } = null;
+
+            public string OrderBy { get; private set; } = string.Empty;
+
+            public string WhereClause { get; private set; } = string.Empty;
+
+            public ExpressionToSQLTranslator()
+            {
+                sb = new StringBuilder();
+            }
+
+            public static string Translate(Expression expression)
+            {
+                var qrt = new ExpressionToSQLTranslator();
+                qrt.Visit(expression);
+                return qrt.sb.ToString();
+            }
+
+            private static Expression StripQuotes(Expression e)
+            {
+                while (e.NodeType == ExpressionType.Quote)
+                {
+                    e = ((UnaryExpression)e).Operand;
+                }
+                return e;
+            }
+
+            protected override Expression VisitMethodCall(MethodCallExpression m)
+            {
+                if (m.Method.DeclaringType == typeof(Queryable) && m.Method.Name == "Where")
+                {
+                    Visit(m.Arguments[0]);
+                    LambdaExpression lambda = (LambdaExpression)StripQuotes(m.Arguments[1]);
+                    Visit(lambda.Body);
+                    return m;
+                }
+                else if (m.Method.Name == "Take")
+                {
+                    if (ParseTakeExpression(m))
+                    {
+                        Expression nextExpression = m.Arguments[0];
+                        return Visit(nextExpression);
+                    }
+                }
+                else if (m.Method.Name == "Skip")
+                {
+                    if (ParseSkipExpression(m))
+                    {
+                        Expression nextExpression = m.Arguments[0];
+                        return Visit(nextExpression);
+                    }
+                }
+                else if (m.Method.Name == "OrderBy")
+                {
+                    if (ParseOrderByExpression(m, "ASC"))
+                    {
+                        Expression nextExpression = m.Arguments[0];
+                        return Visit(nextExpression);
+                    }
+                }
+                else if (m.Method.Name == "OrderByDescending")
+                {
+                    if (ParseOrderByExpression(m, "DESC"))
+                    {
+                        Expression nextExpression = m.Arguments[0];
+                        return Visit(nextExpression);
+                    }
+                }
+
+                throw new NotSupportedException(string.Format("The method '{0}' is not supported", m.Method.Name));
+            }
+
+            protected override Expression VisitUnary(UnaryExpression u)
+            {
+                switch (u.NodeType)
+                {
+                    case ExpressionType.Not:
+                        sb.Append(" NOT ");
+                        Visit(u.Operand);
+                        break;
+                    case ExpressionType.Convert:
+                        Visit(u.Operand);
+                        break;
+                    default:
+                        throw new NotSupportedException(string.Format("The unary operator '{0}' is not supported", u.NodeType));
+                }
+                return u;
+            }
+
+
+            /// <summary>
+            /// 
+            /// </summary>
+            /// <param name="b"></param>
+            /// <returns></returns>
+            protected override Expression VisitBinary(BinaryExpression b)
+            {
+                sb.Append("(");
+                Visit(b.Left);
+
+                switch (b.NodeType)
+                {
+                    case ExpressionType.And:
+                        sb.Append(" AND ");
+                        break;
+
+                    case ExpressionType.AndAlso:
+                        sb.Append(" AND ");
+                        break;
+
+                    case ExpressionType.Or:
+                        sb.Append(" OR ");
+                        break;
+
+                    case ExpressionType.OrElse:
+                        sb.Append(" OR ");
+                        break;
+
+                    case ExpressionType.Equal:
+                        if (IsNullConstant(b.Right))
+                        {
+                            sb.Append(" IS ");
+                        }
+                        else
+                        {
+                            sb.Append(" = ");
+                        }
+                        break;
+
+                    case ExpressionType.NotEqual:
+                        if (IsNullConstant(b.Right))
+                        {
+                            sb.Append(" IS NOT ");
+                        }
+                        else
+                        {
+                            sb.Append(" <> ");
+                        }
+                        break;
+
+                    case ExpressionType.LessThan:
+                        sb.Append(" < ");
+                        break;
+
+                    case ExpressionType.LessThanOrEqual:
+                        sb.Append(" <= ");
+                        break;
+
+                    case ExpressionType.GreaterThan:
+                        sb.Append(" > ");
+                        break;
+
+                    case ExpressionType.GreaterThanOrEqual:
+                        sb.Append(" >= ");
+                        break;
+
+                    default:
+                        throw new NotSupportedException(string.Format("The binary operator '{0}' is not supported", b.NodeType));
+
+                }
+
+                Visit(b.Right);
+                sb.Append(")");
+                return b;
+            }
+
+            protected override Expression VisitConstant(ConstantExpression c)
+            {
+                IQueryable q = c.Value as IQueryable;
+
+                if (q == null && c.Value == null)
+                {
+                    sb.Append("NULL");
+                }
+                else if (q == null)
+                {
+                    switch (Type.GetTypeCode(c.Value.GetType()))
+                    {
+                        case TypeCode.Boolean:
+                            sb.Append(((bool)c.Value) ? 1 : 0);
+                            break;
+
+                        case TypeCode.String:
+                            sb.Append("'");
+                            sb.Append(c.Value);
+                            sb.Append("'");
+                            break;
+
+                        case TypeCode.DateTime:
+                            sb.Append("'");
+                            sb.Append(c.Value);
+                            sb.Append("'");
+                            break;
+
+                        case TypeCode.Object:
+                            throw new NotSupportedException(string.Format("The constant for '{0}' is not supported", c.Value));
+
+                        default:
+                            sb.Append(c.Value);
+                            break;
+                    }
+                }
+
+                return c;
+            }
+
+            protected override Expression VisitMember(MemberExpression m)
+            {
+                if (m.Expression == null)
+                    throw new ArgumentException($"Part of the Expression ({m.Member?.Name ?? "unknown name"}) is null!");
+
+                if (m.Expression.NodeType == ExpressionType.Parameter)
+                {
+                    sb.Append(m.Member.Name);
+                    return m;
+                }
+                else if (m.Expression.NodeType == ExpressionType.Constant || m.Expression.NodeType == ExpressionType.MemberAccess)
+                {
+                    var obj = GetMemberExpressionValue(m);
+                    sb.Append(obj);
+                    return m;
+                }
+
+                throw new NotSupportedException(string.Format("The member '{0}' is not supported", m.Member.Name));
+            }
+
+            protected bool IsNullConstant(Expression exp)
+            {
+                return (exp.NodeType == ExpressionType.Constant && ((ConstantExpression)exp).Value == null);
+            }
+
+            private bool ParseOrderByExpression(MethodCallExpression expression, string order)
+            {
+                UnaryExpression unary = (UnaryExpression)expression.Arguments[1];
+                LambdaExpression lambdaExpression = (LambdaExpression)unary.Operand;
+
+                lambdaExpression = (LambdaExpression)Evaluator.PartialEval(lambdaExpression);
+
+                MemberExpression body = lambdaExpression.Body as MemberExpression;
+                if (body != null)
+                {
+                    if (string.IsNullOrEmpty(OrderBy))
+                    {
+                        OrderBy = string.Format("{0} {1}", body.Member.Name, order);
+                    }
+                    else
+                    {
+                        OrderBy = string.Format("{0}, {1} {2}", OrderBy, body.Member.Name, order);
+                    }
+
+                    return true;
+                }
+
+                return false;
+            }
+
+            private bool ParseTakeExpression(MethodCallExpression expression)
+            {
+                ConstantExpression sizeExpression = (ConstantExpression)expression.Arguments[1];
+
+                int size;
+                if (int.TryParse(sizeExpression.Value.ToString(), out size))
+                {
+                    Take = size;
+                    return true;
+                }
+
+                return false;
+            }
+
+            private bool ParseSkipExpression(MethodCallExpression expression)
+            {
+                ConstantExpression sizeExpression = (ConstantExpression)expression.Arguments[1];
+
+                int size;
+                if (int.TryParse(sizeExpression.Value.ToString(), out size))
+                {
+                    Skip = size;
+                    return true;
+                }
+
+                return false;
+            }
+
+            private object GetMemberExpressionValue(MemberExpression member)
+            {
+                try
+                {
+                    var objectMember = Expression.Convert(member, typeof(object));
+
+                    var getterLambda = Expression.Lambda<Func<object>>(objectMember);
+
+                    var getter = getterLambda.Compile();
+
+                    return getter();
+                }
+                catch { return null; }
+            }
+
+            #region EF part
+
+            /// <summary>
+            /// Enables the partial evaluation of queries.
+            /// </summary>
+            /// <remarks>
+            /// From http://msdn.microsoft.com/en-us/library/bb546158.aspx
+            /// Copyright notice http://msdn.microsoft.com/en-gb/cc300389.aspx#O
+            /// </remarks>
+            internal static class Evaluator
+            {
+                /// <summary>
+                /// Performs evaluation and replacement of independent sub-trees
+                /// </summary>
+                /// <param name="expression">The root of the expression tree.</param>
+                /// <param name="fnCanBeEvaluated">A function that decides whether a given expression node can be part of the local function.</param>
+                /// <returns>A new tree with sub-trees evaluated and replaced.</returns>
+                public static Expression PartialEval(Expression expression, Func<Expression, bool> fnCanBeEvaluated)
+                {
+                    return new SubtreeEvaluator(new Nominator(fnCanBeEvaluated).Nominate(expression)).Eval(expression);
+                }
+
+                /// <summary>
+                /// Performs evaluation and replacement of independent sub-trees
+                /// </summary>
+                /// <param name="expression">The root of the expression tree.</param>
+                /// <returns>A new tree with sub-trees evaluated and replaced.</returns>
+                public static Expression PartialEval(Expression expression)
+                {
+                    return PartialEval(expression, Evaluator.CanBeEvaluatedLocally);
+                }
+
+                private static bool CanBeEvaluatedLocally(Expression expression)
+                {
+                    return expression.NodeType != ExpressionType.Parameter;
+                }
+
+                /// <summary>
+                /// Evaluates and replaces sub-trees when first candidate is reached (top-down)
+                /// </summary>
+                class SubtreeEvaluator : ExpressionVisitor
+                {
+                    HashSet<Expression> candidates;
+
+                    internal SubtreeEvaluator(HashSet<Expression> candidates)
+                    {
+                        this.candidates = candidates;
+                    }
+
+                    internal Expression Eval(Expression exp)
+                    {
+                        return this.Visit(exp);
+                    }
+
+                    public override Expression Visit(Expression exp)
+                    {
+                        if (exp == null)
+                        {
+                            return null;
+                        }
+                        if (this.candidates.Contains(exp))
+                        {
+                            return this.Evaluate(exp);
+                        }
+                        return base.Visit(exp);
+                    }
+
+                    private Expression Evaluate(Expression e)
+                    {
+                        if (e.NodeType == ExpressionType.Constant)
+                        {
+                            return e;
+                        }
+                        LambdaExpression lambda = Expression.Lambda(e);
+                        Delegate fn = lambda.Compile();
+                        return Expression.Constant(fn.DynamicInvoke(null), e.Type);
+                    }
+
+                    protected override Expression VisitMemberInit(MemberInitExpression node)
+                    {
+                        if (node.NewExpression.NodeType == ExpressionType.New)
+                            return node;
+
+                        return base.VisitMemberInit(node);
+                    }
+                }
+
+                /// <summary>
+                /// Performs bottom-up analysis to determine which nodes can possibly
+                /// be part of an evaluated sub-tree.
+                /// </summary>
+                class Nominator : ExpressionVisitor
+                {
+                    Func<Expression, bool> fnCanBeEvaluated;
+                    HashSet<Expression> candidates;
+                    bool cannotBeEvaluated;
+
+                    internal Nominator(Func<Expression, bool> fnCanBeEvaluated)
+                    {
+                        this.fnCanBeEvaluated = fnCanBeEvaluated;
+                    }
+
+                    internal HashSet<Expression> Nominate(Expression expression)
+                    {
+                        this.candidates = new HashSet<Expression>();
+                        this.Visit(expression);
+                        return this.candidates;
+                    }
+
+                    public override Expression Visit(Expression expression)
+                    {
+                        if (expression != null)
+                        {
+                            bool saveCannotBeEvaluated = this.cannotBeEvaluated;
+                            this.cannotBeEvaluated = false;
+                            base.Visit(expression);
+                            if (!this.cannotBeEvaluated)
+                            {
+                                if (this.fnCanBeEvaluated(expression))
+                                {
+                                    this.candidates.Add(expression);
+                                }
+                                else
+                                {
+                                    this.cannotBeEvaluated = true;
+                                }
+                            }
+                            this.cannotBeEvaluated |= saveCannotBeEvaluated;
+                        }
+                        return expression;
+                    }
+                }
+            }
+
+            #endregion
+        }
+
+        #endregion
 
         #region Attributes
 
@@ -599,16 +1024,22 @@ namespace PN.Storage
         public class SQLiteIgnoreAttribute : Attribute { }
 
         #endregion
-
     }
+
 
     public enum Is
     {
         ///<summary>A > B</summary>
-        BiggerThen,
+        BiggerThan,
+
+        ///<summary>A >= B</summary>
+        BiggerThanOrEquals,
 
         ///<summary>A < B</summary>
-        LessThen,
+        LessThan,
+
+        ///<summary>A <= B</summary>
+        LessThanOrEquals,
 
         ///<summary>A == B</summary>
         Equals,
@@ -637,30 +1068,71 @@ namespace PN.Storage
         ///<summary>Get bool type as parameter</summary>
         Reversed,
     }
+    
 
     public class WhereCondition
     {
-        public WhereCondition Where(string propertyName, Is operation, params object[] parameters)
+        internal WhereCondition(Condition condition)
         {
-            Conditions.Add(new Condition
-            {
-                PropertyName = propertyName,
-                Operation = operation,
-                Parameters = parameters,
-            });
+            Conditions.Add(condition);
+        }
+
+        #region AND Where
+        public WhereCondition AndWhere<T>(Expression<Func<T, dynamic>> expression)
+        {
+            return AddConditionAndReturnSelf(new Condition(ConditionTypes.AND, expression));
+        }
+
+        public WhereCondition AndWhere<T>(Expression<Func<T, object>> member, Is operation, params object[] parameters)
+        {
+            return AddConditionAndReturnSelf(new Condition(ConditionTypes.AND, Utils.Converters.ExpressionToString(member), operation, parameters));
+        }
+
+        public WhereCondition AndWhere(string propertyName, Is operation, params object[] parameters)
+        {
+            return AddConditionAndReturnSelf(new Condition(ConditionTypes.AND, propertyName, operation, parameters));
+        }
+        #endregion
+
+        #region OR Where
+        public WhereCondition OrWhere<T>(Expression<Func<T, dynamic>> expression)
+        {
+            return AddConditionAndReturnSelf(new Condition(ConditionTypes.OR, expression));
+        }
+
+        public WhereCondition OrWhere<T>(Expression<Func<T, object>> member, Is operation, params object[] parameters)
+        {
+            return AddConditionAndReturnSelf(new Condition(ConditionTypes.OR, Utils.Converters.ExpressionToString(member), operation, parameters));
+        }
+
+        public WhereCondition OrWhere(string propertyName, Is operation, params object[] parameters)
+        {
+            return AddConditionAndReturnSelf(new Condition(ConditionTypes.OR, propertyName, operation, parameters));
+        }
+        #endregion
+        
+        private WhereCondition AddConditionAndReturnSelf(Condition condition)
+        {
+            Conditions.Add(condition);
 
             return this;
         }
-
-        internal enum ConditionTypes { AND, OR, }
+      
+        internal enum ConditionTypes { AND, OR, WHERE }
 
         internal static Dictionary<Is, string> SimpleOperators = new Dictionary<Is, string>
         {
             {
-                Is.BiggerThen, ">"
+                Is.BiggerThan, ">"
             },
             {
-                Is.LessThen, "<"
+                Is.BiggerThanOrEquals, ">="
+            },
+            {
+                Is.LessThan, "<"
+            },
+            {
+                Is.LessThanOrEquals, "<="
             },
             {
                 Is.Equals, "="
@@ -672,15 +1144,32 @@ namespace PN.Storage
 
         internal class Condition
         {
+            public Condition() { }
+            public Condition(ConditionTypes conditionType, Expression expression)
+            {
+                Expression = expression;
+                ConditionType = conditionType;
+            }
+            public Condition(ConditionTypes conditionType, string propertyName, Is operation, params object[] parameters)
+            {
+                PropertyName = propertyName;
+                Operation = operation;
+                Parameters = parameters;
+                ConditionType = conditionType;
+            }
+
             internal string PropertyName;
             internal Is Operation;
             internal object[] Parameters;
+            internal Expression Expression;
+            internal ConditionTypes ConditionType = ConditionTypes.WHERE;
         }
 
+      //  internal List<WhereCondition> Wheres = new List<WhereCondition>();
         internal List<Condition> Conditions = new List<Condition>();
         internal long Limit = -1;
         internal bool Reverse = false;
-        internal ConditionTypes ConditionType = ConditionTypes.AND;
+      //  internal ConditionTypes ConditionType = ConditionTypes.NONE;
 
         public List<T> Get<T>() => (List<T>)SQLite.Worker.ExecuteQuery(null, typeof(T), this);
 
@@ -692,6 +1181,7 @@ namespace PN.Storage
 
         public SQLiteMethodResponse Delete(Type type, params object[] data) => (SQLiteMethodResponse)SQLite.Worker.ExecuteQuery(data, type, this);
     }
+
 
     public class SQLiteMethodResponse
     {

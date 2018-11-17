@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Linq;
+using System.Linq.Expressions;
 
 namespace PN.Utils
 {
@@ -163,6 +164,46 @@ namespace PN.Utils
             public static string ToString(byte[] inArray) => Convert.ToBase64String(inArray);
             public static byte[] ToBytes(string s) => Convert.FromBase64String(s);
         }
-    }
 
+        public static string ExpressionToString<T>(Expression<Func<T>> member)
+        {
+            var expressionPath = (member?.Body as UnaryExpression)?.Operand?.ToString();
+
+            return expressionPath.Split('.').Skip(1).ToList().FirstOrDefault();
+        }
+
+        public static string ExpressionToString(Expression<Func<object>> member)
+        {
+            var expressionPath = (member?.Body as UnaryExpression)?.Operand?.ToString();
+
+            return expressionPath.Split('.').Skip(1).ToList().FirstOrDefault();
+        }
+
+        public static string ExpressionToString(Expression<Func<object, object>> member)
+        {
+            var expressionPath = (member?.Body as UnaryExpression)?.Operand?.ToString();
+
+            return expressionPath.Split('.').Skip(1).ToList().FirstOrDefault();
+        }
+
+        public static string ExpressionToString<T>(Expression<Func<T, object>> member)
+        {
+            var expressionPath = (member?.Body as UnaryExpression)?.Operand?.ToString();
+
+            return expressionPath.Split('.').Skip(1).ToList().FirstOrDefault();
+        }
+
+        public static string ExpressionToString<T>(Expression<Func<T, dynamic>> member, out Type expressionLastPartType)
+        {
+            var expressionPath = (member?.Body as UnaryExpression)?.Operand?.ToString();
+
+            var sortType = typeof(T);
+            var propertiesFromPath = expressionPath.Split('.').Skip(1).ToList();
+            propertiesFromPath.ForEach(p => sortType = sortType.GetProperty(p)?.PropertyType ?? sortType);
+
+            expressionLastPartType = sortType;
+
+            return expressionPath;
+        }
+    }
 }
