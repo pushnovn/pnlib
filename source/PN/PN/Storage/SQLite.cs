@@ -511,7 +511,7 @@ namespace PN.Storage
                 return sf.GetMethod().Name;
             }
 
-            static string GetPropertyNameInTable(PropertyInfo prop) => prop.GetCustomAttribute<SQLiteNameAttribute>()?.Name ?? prop.Name;
+            internal static string GetPropertyNameInTable(PropertyInfo prop) => prop.GetCustomAttribute<SQLiteNameAttribute>()?.Name ?? prop.Name;
 
             static SQLiteMethodResponse NewSQLiteResponse(Exception ex = null, string sqlQuery = "")
             {
@@ -557,7 +557,7 @@ namespace PN.Storage
 
         #region Expression To SQL
         
-        public class ExpressionToSQLTranslator : ExpressionVisitor
+        internal class ExpressionToSQLTranslator : ExpressionVisitor
         {
             private StringBuilder sb;
 
@@ -742,7 +742,7 @@ namespace PN.Storage
                     switch (Type.GetTypeCode(c.Value.GetType()))
                     {
                         case TypeCode.Boolean:
-                            sb.Append(((bool)c.Value) ? 1 : 0);
+                            sb.Append($"'{(bool)c.Value}'");
                             break;
 
                         case TypeCode.String:
@@ -776,7 +776,8 @@ namespace PN.Storage
 
                 if (m.Expression.NodeType == ExpressionType.Parameter)
                 {
-                    sb.Append(m.Member.Name);
+                    Console.WriteLine($"                                       1: {m.Member.Name} => {GetMemberInfoNameInTable(m.Member)}");
+                    sb.Append(GetMemberInfoNameInTable(m.Member));
                     return m;
                 }
                 else if (m.Expression.NodeType == ExpressionType.Constant || m.Expression.NodeType == ExpressionType.MemberAccess)
@@ -806,11 +807,11 @@ namespace PN.Storage
                 {
                     if (string.IsNullOrEmpty(OrderBy))
                     {
-                        OrderBy = string.Format("{0} {1}", body.Member.Name, order);
+                        OrderBy = $"{GetMemberInfoNameInTable(body.Member)} {order}";
                     }
                     else
                     {
-                        OrderBy = string.Format("{0}, {1} {2}", OrderBy, body.Member.Name, order);
+                        OrderBy = $"{OrderBy}, {GetMemberInfoNameInTable(body.Member)} {order}";
                     }
 
                     return true;
@@ -861,6 +862,8 @@ namespace PN.Storage
                 }
                 catch { return null; }
             }
+            
+            string GetMemberInfoNameInTable(MemberInfo memberInfo) => memberInfo.GetCustomAttribute<SQLiteNameAttribute>()?.Name ?? memberInfo.Name;
 
             #region EF part
 
