@@ -2,14 +2,15 @@
 <package >
   <metadata>
     <id>Pushnovn.PN</id>
-    <version>0.1.6.6-pre-alpha</version>
+    <version>0.1.6.7-pre-alpha</version>
     <title>PN lib (Pre-Alpha)</title>
     <authors>Pushnovn</authors>
     <owners>Pushnovn</owners>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>Internal PN lib</description>
     <releaseNotes>
-- Fixed problem with boolean type (now through string/TEXT column type).
+- Updated Where QUERYings to SQLite.
+- Added poor support some kind of LINQ. 
     </releaseNotes>
     <projectUrl>http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http</projectUrl>
     <copyright>Copyright 2018</copyright>
