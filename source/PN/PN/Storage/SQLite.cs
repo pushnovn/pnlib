@@ -126,6 +126,11 @@ namespace PN.Storage
         {
             return new WhereCondition(condition);
         }
+
+        public static string Test<T>(Expression<Func<T, dynamic>> expression)
+        {
+            return ExpressionToSQLTranslator.Translate(expression);
+        }
         #endregion
 
 
@@ -777,7 +782,11 @@ namespace PN.Storage
                 if (m.Expression.NodeType == ExpressionType.Parameter)
                 {
                     Console.WriteLine($"                                       1: {m.Member.Name} => {GetMemberInfoNameInTable(m.Member)}");
+                    sb.Append("(");
                     sb.Append(GetMemberInfoNameInTable(m.Member));
+                    if (m.Member.MemberType == MemberTypes.Property && (m.Member as PropertyInfo)?.PropertyType == typeof(bool))
+                        sb.Append($" = '{true}'");
+                    sb.Append(")");
                     return m;
                 }
                 else if (m.Expression.NodeType == ExpressionType.Constant || m.Expression.NodeType == ExpressionType.MemberAccess)
