@@ -1,21 +1,29 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Reflection;
 using System.Data.SQLite;
 using System.Diagnostics;
 using System.Collections;
+using System.Linq.Expressions;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using System.Linq.Expressions;
 using static PN.Storage.WhereCondition;
-using System.Text;
 
 namespace PN.Storage
 {
     public class SQLite
     {
         #region Interface methods
+
+        #region Get
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static List<T> Get<T>(Expression<Func<T, dynamic>> expression)
+        {
+            return (List<T>)Worker.ExecuteQuery(null, typeof(T), Where<T>(expression));
+        }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static IList Get(Type type)
@@ -29,11 +37,19 @@ namespace PN.Storage
             return (List<T>)Worker.ExecuteQuery(null, typeof(T));
         }
 
+        #endregion
+
+        #region GetCount
+
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static int GetCount<T>()
         {
             return (int)Worker.ExecuteQuery(null, typeof(T));
         }
+
+        #endregion
+
+        #region Set
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static SQLiteMethodResponse Set(params object[] data)
@@ -41,11 +57,29 @@ namespace PN.Storage
             return (SQLiteMethodResponse)Worker.ExecuteQuery(data);
         }
 
+        #endregion
+
+        #region Update
+        
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static SQLiteMethodResponse Update(params object[] data)
         {
             return (SQLiteMethodResponse)Worker.ExecuteQuery(data);
         }
+
+        #endregion
+        
+        #region SetOrUpdate
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static SQLiteMethodResponse SetOrUpdate(params object[] data)
+        {
+            return (SQLiteMethodResponse)Worker.ExecuteQuery(data);
+        }
+
+        #endregion
+
+        #region Delete
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static SQLiteMethodResponse Delete(params object[] data)
@@ -54,12 +88,31 @@ namespace PN.Storage
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
+        public static SQLiteMethodResponse Delete<T>(params object[] data)
+        {
+            return (SQLiteMethodResponse)Worker.ExecuteQuery(data, typeof(T));
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static SQLiteMethodResponse Delete<T>(Expression<Func<T, dynamic>> expression)
+        {
+            return (SQLiteMethodResponse)Worker.ExecuteQuery(null, typeof(T), Where<T>(expression));
+        }
+
+        #endregion
+
+        #region Truncate
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public static SQLiteMethodResponse Truncate<T>(params object[] data)
         {
             return (SQLiteMethodResponse)Worker.ExecuteQuery(data, typeof(T));
         }
 
+        #endregion
 
+        #region ExecuteString
+        
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static SQLiteMethodResponse ExecuteString(string str)
         {
@@ -80,12 +133,18 @@ namespace PN.Storage
 
         #endregion
 
+        #endregion
+
 
         #region Global Properties
 
         public static string PathToDB { get; set; }
 
+        public static BooleanStorageType BooleanType { get; set; } = BooleanStorageType.Integer;
+        public enum BooleanStorageType { Integer, String }
+
         public static Exception LastQueryException;
+        public static string LastQueryString;
 
         #region Table's list
 
@@ -134,6 +193,8 @@ namespace PN.Storage
         #endregion
 
 
+        #region Worker
+
         internal class Worker
         {
             // Исполняем любой запрос к БД
@@ -146,18 +207,18 @@ namespace PN.Storage
 
                 if (commandName.Equals("Truncate") == false)
                 {
-                    // Проверяем, не подсунули ли нам пустоту вместо данных для работы
-                    if ((commandName.Contains("Get") == false && commandName.Contains("Delete") == false) && ((data == null) || (data.Count() < 1)))
-                        return NewSQLiteResponse();
+                    data = data.Where(d => d != null).ToArray();
 
-                    if ((data ?? new object[0]).Any(d => d == null))
-                        return NewSQLiteResponse(new NullReferenceException("Data array contains null object."));
+                    var emptyDataCommands = new List<string>() { nameof(Get), nameof(GetCount), nameof(Delete) };
+
+                    if (emptyDataCommands.Any(s => s == commandName) == false && data.Count() == 0)
+                        return NewSQLiteResponse();
                 }
 
-                if (resultType == null && (data ?? new object[0]).Count() == 0)
-                    return NewSQLiteResponse(new NullReferenceException($"Command '{commandName}' cannot be called with empty or nullable data array."));
+                resultType = resultType ?? data.FirstOrDefault()?.GetType();
+                if (resultType == null)
+                    return NewSQLiteResponse(new Exception($"Command '{commandName}' cannot be called with empty or null data array."));
 
-                resultType = resultType ?? data[0].GetType();
                 var tableName = '"' + (resultType.GetCustomAttribute<SQLiteNameAttribute>()?.Name ?? resultType.Name + "s") + '"';
                 var props = GetSQLitePropertiesFromType(resultType);
 
@@ -169,13 +230,13 @@ namespace PN.Storage
 
                     switch (commandName)
                     {
-                        #region Get/GetCount method implementation
+                        #region Get/GetCount
 
-                        case "Get":
+                        case nameof(Get):
                             command.CommandText = $"SELECT * FROM {tableName} {CreateWherePartOfSqlRequest(where, props)}";
-                            return GetResultsFromDB(command, resultType, props);
+                            return GetResultsFromDB(command, resultType);
 
-                        case "GetCount":
+                        case nameof(GetCount):
                             command.CommandText = $"SELECT COUNT(*) FROM {tableName} {CreateWherePartOfSqlRequest(where, props)}";
                             try
                             {
@@ -188,19 +249,22 @@ namespace PN.Storage
                             catch (Exception ex)
                             {
                                 LastQueryException = ex;
+                                LastQueryString = command.CommandText;
                                 return -1;
                             }
 
                         #endregion
 
-                        #region Set method implementation
+                        #region Set
 
-                        case "Set":
+                        case nameof(Set):
+                        case nameof(SetOrUpdate):
 
-                            var tableToInsertPartOfQuery = $"INSERT INTO {tableName}";
+                            var tableToInsertPartOfQuery = $"INSERT OR REPLACE INTO {tableName}";
 
-                            props.Remove(props.FirstOrDefault(prop => prop.Name.ToLower() == "id"));
-
+                            if (commandName == nameof(Set))
+                                props.Remove(props.FirstOrDefault(prop => prop.Name.ToLower() == "id"));
+                            
                             var strWithFields = $" ({string.Join(",", props.Select(prop => GetPropertyNameInTable(prop)).ToArray()).TrimEnd(',')}) values ";
                             var strWithValues = string.Empty;
                             foreach (var obj in Utils.Converters.ConvertArrayWithSingleListToArrayOfItems(data))
@@ -209,12 +273,18 @@ namespace PN.Storage
                                 foreach (var prop in props)
                                 {
                                     var value = prop.GetValue(obj, null);
+
+                                    if (prop.Name.ToLower() == "id")
+                                    {
+                                        value = (commandName == nameof(Set) || value.Equals(0)) ? null : value;
+                                    }
+
                                     value = (value != null && value is string) ? (value as string).Replace("\'", "\'\'") : value;
 
                                     if (prop.PropertyType.IsValueType == false && prop.PropertyType != typeof(string))
                                         value = Utils.Converters.ObjectToString(value);
-
-                                    strWithValues += value == null ? "NULL," : $"'{value}',";
+                                    
+                                    strWithValues += $"{value.ToSQLiteString()},";
                                 }
 
                                 strWithValues = strWithValues.TrimEnd(',') + "),";
@@ -226,9 +296,9 @@ namespace PN.Storage
 
                         #endregion
 
-                        #region Update method implementation
+                        #region Update
 
-                        case "Update":
+                        case nameof(Update):
 
                             var tableToInsertPartOfQueryForUpdateMethod = $"UPDATE {tableName} SET ";
 
@@ -248,16 +318,16 @@ namespace PN.Storage
 
                                     if (prop.PropertyType.IsValueType == false && prop.PropertyType != typeof(string))
                                         value = Utils.Converters.ObjectToString(value);
-
-                                    groupString += $"WHEN {id} THEN " + (value == null ? "NULL " : $"'{value}' ");
+                                    
+                                    groupString += $"WHEN {id} THEN {value.ToSQLiteString()} ";
 
                                     idsEnum += id + ",";
                                 }
 
-                                groupString += "END,";
+                                groupString += "END,                                                      ";
                             }
-
-                            groupString = $"{groupString.TrimEnd(',')} WHERE id IN ({idsEnum.TrimEnd(',')});";
+                            
+                            groupString = $"{groupString.Remove(groupString.LastIndexOf(","), 1)} WHERE id IN ({idsEnum.TrimEnd(',')});";
 
                             command.CommandText = tableToInsertPartOfQueryForUpdateMethod + groupString;
 
@@ -265,9 +335,9 @@ namespace PN.Storage
 
                         #endregion
 
-                        #region Delete method implementation
+                        #region Delete
 
-                        case "Delete":
+                        case nameof(Delete):
 
                             if (where == null)
                             {
@@ -302,9 +372,9 @@ namespace PN.Storage
 
                         #endregion
 
-                        #region Truncate method implementation
+                        #region Truncate
 
-                        case "Truncate":
+                        case nameof(Truncate):
                             //   TRUNCATE[TABLE] tbl_name
                             // command.CommandText = String.Format("SELECT * FROM {0};", resultType.Name + 's');
                             command.CommandText = string.Format($"DELETE FROM {tableName}");
@@ -313,9 +383,9 @@ namespace PN.Storage
 
                         #endregion
 
-                        #region ExecuteQuery method implementation
+                        #region ExecuteQuery
 
-                        case "ExecuteString":
+                        case nameof(ExecuteString):
 
                             foreach (var chr in data)
                                 command.CommandText = (command.CommandText ?? String.Empty) + chr.ToString();
@@ -323,8 +393,9 @@ namespace PN.Storage
                             if (resultType == typeof(string))
                                 return ExecuteNonQueryWithResponse(command);
                             else
-                                return GetResultsFromDB(command, resultType, GetSQLitePropertiesFromType(resultType));
-                            #endregion
+                                return GetResultsFromDB(command, resultType);
+
+                        #endregion
                     }
 
                     return NewSQLiteResponse(new ArgumentException($"Command '{commandName}' not found."));
@@ -367,7 +438,7 @@ namespace PN.Storage
                         subCommandText += $" {condition.ConditionType} (";
 
                     condition.Parameters = Utils.Converters.ConvertArrayWithSingleListToArrayOfItems(condition.Parameters);
-                    var quote = condition.Parameters[0] is string ? "'" : string.Empty;
+
                     switch (condition.Operation)
                     {
                         case Is.BiggerThan:
@@ -378,23 +449,25 @@ namespace PN.Storage
                         case Is.NotEquals:
                             subCommandText += $"{condition.PropertyName} " +
                                 $"{SimpleOperators[condition.Operation]} " +
-                                $"{quote}{condition.Parameters[0]}{quote}";
+                                $"{condition.Parameters[0].ToSQLiteString()}";
                             break;
 
                         case Is.Like:
-                            subCommandText += $"{condition.PropertyName} LIKE {quote}%{condition.Parameters[0]}%{quote}";
+                            subCommandText += $"{condition.PropertyName} LIKE {condition.Parameters[0].ToSQLiteString(true)}";
                             break;
 
                         case Is.Between:
                             if (condition.Parameters.Length > 1)
-                                subCommandText += $"{condition.PropertyName} BETWEEN {condition.Parameters[0]} AND {condition.Parameters[1]}";
+                                subCommandText += $"{condition.PropertyName} " +
+                                    $"BETWEEN {condition.Parameters[0].ToSQLiteString()} " +
+                                    $"AND {condition.Parameters[1].ToSQLiteString()}";
                             break;
 
                         case Is.In:
                             subCommandText += $"{condition.PropertyName} IN (";
                             foreach (var arrItem in condition.Parameters)
                             {
-                                subCommandText += $"{quote}{arrItem}{quote},";
+                                subCommandText += $"{arrItem.ToSQLiteString()},";
                             }
                             subCommandText = subCommandText.TrimEnd(',') + ")";
                             break;
@@ -403,12 +476,12 @@ namespace PN.Storage
                             if (string.IsNullOrEmpty(condition.PropertyName))
                                 foreach (var prop in props)
                                     foreach (var subStr in condition.Parameters)
-                                        subCommandText += " " + GetPropertyNameInTable(prop) + " LIKE '%" + subStr + "%' OR";
+                                        subCommandText += $" {GetPropertyNameInTable(prop)} LIKE {subStr.ToSQLiteString(true)} OR";
                             else
                                 foreach (var arrItem in (condition.Parameters[0] is IList)
                                         ? condition.Parameters[0] as IList
                                         : condition.Parameters)
-                                    subCommandText += " " + condition.PropertyName + " LIKE '%" + arrItem + "%' OR";
+                                    subCommandText += $" {condition.PropertyName} LIKE {arrItem.ToSQLiteString(true)} OR";
 
                             if (subCommandText.Trim().EndsWith("OR"))
                                 subCommandText = subCommandText.Trim().Remove(subCommandText.Length - 3);
@@ -417,7 +490,7 @@ namespace PN.Storage
                         case Is.ContainsAnythingFrom:
                             foreach (var prop in props)
                                 foreach (var subStr in condition.Parameters)
-                                    subCommandText += $" {GetPropertyNameInTable(prop)} LIKE '%{subStr}%' OR";
+                                    subCommandText += $" {GetPropertyNameInTable(prop)} LIKE {subStr.ToSQLiteString(true)} OR";
 
                             if (subCommandText.Trim().EndsWith("OR"))
                                 subCommandText = subCommandText.Trim().Remove(subCommandText.Length - 3);
@@ -454,7 +527,7 @@ namespace PN.Storage
                 return resultType.GetProperties(bindingFlags).Where(prop => prop.GetCustomAttribute<SQLiteIgnoreAttribute>() == null).ToList();
             }
 
-            static IList GetResultsFromDB(SQLiteCommand command, Type resultType, List<PropertyInfo> props = null)
+            static IList GetResultsFromDB(SQLiteCommand command, Type resultType)
             {
                 try
                 {
@@ -466,27 +539,39 @@ namespace PN.Storage
                         {
                             var resObj = Activator.CreateInstance(resultType);
 
-                            foreach (var prop in props ?? GetSQLitePropertiesFromType(resultType))
+                            foreach (var prop in GetSQLitePropertiesFromType(resultType))
                             {
                                 var propertyNameInTable = GetPropertyNameInTable(prop);
                                 var objectFromSQLiteDataReader = sqliteDataReader[propertyNameInTable];
-
-                                if (objectFromSQLiteDataReader == DBNull.Value)
-                                {
-                                    prop.SetValue(resObj, Utils.Internal.CreateDefaultObject(prop.PropertyType), null);
-                                    continue;
-                                }
+                                object objectToSetToProperty;
 
                                 try
                                 {
-                                    var objectToSetToProperty = (prop.PropertyType.IsValueType || prop.PropertyType == typeof(string)) ?
-                                        Convert.ChangeType(objectFromSQLiteDataReader, prop.PropertyType) :
-                                        Utils.Converters.StringToObject((string)objectFromSQLiteDataReader, prop.PropertyType);
-
-                                    prop.SetValue(resObj, objectFromSQLiteDataReader != DBNull.Value ? objectToSetToProperty : null, null);
+                                    if (objectFromSQLiteDataReader == DBNull.Value)
+                                    {
+                                        objectToSetToProperty = Utils.Internal.CreateDefaultObject(prop.PropertyType);
+                                    }
+                                    else if (prop.PropertyType == typeof(bool) && SQLite.BooleanType == BooleanStorageType.Integer)
+                                    {
+                                        objectToSetToProperty = (long)objectFromSQLiteDataReader == 1;
+                                    }
+                                    else if (prop.PropertyType.IsValueType || prop.PropertyType == typeof(string))
+                                    {
+                                        objectToSetToProperty = Convert.ChangeType(objectFromSQLiteDataReader, prop.PropertyType);
+                                    }
+                                    else
+                                    {
+                                        objectToSetToProperty = Utils.Converters.StringToObject((string)objectFromSQLiteDataReader, prop.PropertyType);
+                                    }
+                                    
+                                    prop.SetValue(resObj, objectToSetToProperty, null);
                                 }
                                 catch (Exception ex)
                                 {
+                                    #if DEBUG
+                                    throw;
+                                    #endif
+
                                     prop.SetValue(resObj, Utils.Internal.CreateDefaultObject(prop.PropertyType), null);
                                 }
                             }
@@ -500,6 +585,7 @@ namespace PN.Storage
                 catch (Exception ex)
                 {
                     LastQueryException = ex;
+                    LastQueryString = command.CommandText;
                     return null;
                 }
             }
@@ -524,6 +610,7 @@ namespace PN.Storage
                     return new SQLiteMethodResponse() { RowsCountAffected = 0, SqlQuery = sqlQuery };
 
                 LastQueryException = ex;
+                LastQueryString = sqlQuery;
 
                 return new SQLiteMethodResponse() { Exception = ex, SqlQuery = sqlQuery };
             }
@@ -560,8 +647,11 @@ namespace PN.Storage
             }
         }
 
+        #endregion
+
+
         #region Expression To SQL
-        
+
         internal class ExpressionToSQLTranslator : ExpressionVisitor
         {
             private StringBuilder sb;
@@ -656,83 +746,80 @@ namespace PN.Storage
                 }
                 return u;
             }
-
-
-            /// <summary>
-            /// 
-            /// </summary>
-            /// <param name="b"></param>
-            /// <returns></returns>
+            
             protected override Expression VisitBinary(BinaryExpression b)
             {
+                if (CheckExpressionOnNull(b.Left) || CheckExpressionOnNull(b.Right))
+                {
+                    sb.Append("(1=1)");
+                    return b;
+                }
+
                 sb.Append("(");
                 Visit(b.Left);
 
-                switch (b.NodeType)
-                {
-                    case ExpressionType.And:
-                        sb.Append(" AND ");
-                        break;
-
-                    case ExpressionType.AndAlso:
-                        sb.Append(" AND ");
-                        break;
-
-                    case ExpressionType.Or:
-                        sb.Append(" OR ");
-                        break;
-
-                    case ExpressionType.OrElse:
-                        sb.Append(" OR ");
-                        break;
-
-                    case ExpressionType.Equal:
-                        if (IsNullConstant(b.Right))
-                        {
-                            sb.Append(" IS ");
-                        }
-                        else
-                        {
-                            sb.Append(" = ");
-                        }
-                        break;
-
-                    case ExpressionType.NotEqual:
-                        if (IsNullConstant(b.Right))
-                        {
-                            sb.Append(" IS NOT ");
-                        }
-                        else
-                        {
-                            sb.Append(" <> ");
-                        }
-                        break;
-
-                    case ExpressionType.LessThan:
-                        sb.Append(" < ");
-                        break;
-
-                    case ExpressionType.LessThanOrEqual:
-                        sb.Append(" <= ");
-                        break;
-
-                    case ExpressionType.GreaterThan:
-                        sb.Append(" > ");
-                        break;
-
-                    case ExpressionType.GreaterThanOrEqual:
-                        sb.Append(" >= ");
-                        break;
-
-                    default:
-                        throw new NotSupportedException(string.Format("The binary operator '{0}' is not supported", b.NodeType));
-
-                }
+                sb.Append(ExpressionNodeTypeToString(b));
 
                 Visit(b.Right);
                 sb.Append(")");
                 return b;
             }
+
+            #region VisitBinary Help methods
+
+            private string ExpressionNodeTypeToString(BinaryExpression b)
+            {
+                switch (b.NodeType)
+                {
+                    case ExpressionType.And:
+                    case ExpressionType.AndAlso:
+                        return(" AND ");
+                        
+                    case ExpressionType.Or:
+                    case ExpressionType.OrElse:
+                        return(" OR ");
+                        
+                    case ExpressionType.Equal:
+                        return($" {(IsNullConstant(b.Right) ? "IS" : "=")} ");
+                        
+                    case ExpressionType.NotEqual:
+                        return($" {(IsNullConstant(b.Right) ? "IS NOT" : "<>")} ");
+                        
+                    case ExpressionType.LessThan:
+                        return(" < ");
+                        
+                    case ExpressionType.LessThanOrEqual:
+                        return(" <= ");
+                        
+                    case ExpressionType.GreaterThan:
+                        return(" > ");
+                        
+                    case ExpressionType.GreaterThanOrEqual:
+                        return(" >= ");
+                        
+                    default:
+                        throw new NotSupportedException(string.Format("The binary operator '{0}' is not supported", b.NodeType));
+                }
+            }
+
+            private bool CheckExpressionOnNull(Expression expression)
+            {
+                if (expression is MemberExpression memberExpression)
+                {
+                    if (memberExpression.Expression.NodeType == ExpressionType.MemberAccess ||
+                        memberExpression.Expression.NodeType == ExpressionType.Constant)
+                    {
+                        if (GetMemberExpressionValue(memberExpression) == null)
+                        {
+                            return true;
+                        }
+                    }
+                }
+
+                return false;
+            }
+
+            #endregion
 
             protected override Expression VisitConstant(ConstantExpression c)
             {
@@ -750,23 +837,16 @@ namespace PN.Storage
                             sb.Append($"'{(bool)c.Value}'");
                             break;
 
-                        case TypeCode.String:
-                            sb.Append("'");
-                            sb.Append(c.Value);
-                            sb.Append("'");
-                            break;
-
                         case TypeCode.DateTime:
-                            sb.Append("'");
-                            sb.Append(c.Value);
-                            sb.Append("'");
+                        case TypeCode.String:
+                            sb.Append($"'{c.Value}'");
                             break;
 
                         case TypeCode.Object:
                             throw new NotSupportedException(string.Format("The constant for '{0}' is not supported", c.Value));
 
                         default:
-                            sb.Append(c.Value);
+                            sb.Append(c.Value.ToSQLiteString());
                             break;
                     }
                 }
@@ -785,7 +865,7 @@ namespace PN.Storage
                     sb.Append("(");
                     sb.Append(GetMemberInfoNameInTable(m.Member));
                     if (m.Member.MemberType == MemberTypes.Property && (m.Member as PropertyInfo)?.PropertyType == typeof(bool))
-                        sb.Append($" = '{true}'");
+                        sb.Append($" = {true.ToSQLiteString()}");
                     sb.Append(")");
                     return m;
                 }
@@ -1013,6 +1093,7 @@ namespace PN.Storage
 
         #endregion
 
+
         #region Attributes
 
         /// <summary>
@@ -1176,12 +1257,10 @@ namespace PN.Storage
             internal Expression Expression;
             internal ConditionTypes ConditionType = ConditionTypes.WHERE;
         }
-
-      //  internal List<WhereCondition> Wheres = new List<WhereCondition>();
+        
         internal List<Condition> Conditions = new List<Condition>();
         internal long Limit = -1;
         internal bool Reverse = false;
-      //  internal ConditionTypes ConditionType = ConditionTypes.NONE;
 
         public List<T> Get<T>() => (List<T>)SQLite.Worker.ExecuteQuery(null, typeof(T), this);
 
@@ -1200,5 +1279,38 @@ namespace PN.Storage
         public int RowsCountAffected { get; set; } = 0;
         public string SqlQuery { get; set; } = string.Empty;
         public Exception Exception { get; set; } = null;
+    }
+
+
+    public static class DoubleExtensions
+    {
+        public static string ToSQLiteString(this object value, bool isLike = false)
+        {
+            if (value == null)
+                return "NULL";
+
+            if (isLike)
+                return $"'%{value}%'";
+
+            if (value is double || value is float || value is decimal)
+                return value.ToString().Replace(',','.');
+
+            if (value is string)
+                return $"'{value}'";
+
+            if (value is bool)
+            {
+                switch (SQLite.BooleanType)
+                {
+                    case SQLite.BooleanStorageType.Integer:
+                        return (bool) value ? "1" : "0";
+
+                    case SQLite.BooleanStorageType.String:
+                        return $"'{value}'";
+                }
+            }
+
+            return value.ToString();
+        }
     }
 }
