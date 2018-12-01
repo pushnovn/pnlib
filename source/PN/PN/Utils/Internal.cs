@@ -2,6 +2,9 @@
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -23,7 +26,7 @@ namespace PN.Utils
         /// </summary>
         internal static object CreateDefaultObject(Type type, bool allowNull = false)
         {
-            try { return type.IsValueType || allowNull == false ? Activator.CreateInstance(type) : null; }
+            try { return type.IsValueType || allowNull == false || IsObservableCollection(type) ? Activator.CreateInstance(type) : null; }
             catch { return null; }
         }
 
@@ -57,7 +60,7 @@ namespace PN.Utils
                     .SetValue(instance, TryParse ? Newtonsoft.Json.Linq.JObject.Parse((string)value) : value);
             }
             catch { }
-            
+
             try
             {
                 instance
@@ -104,7 +107,7 @@ namespace PN.Utils
         /// </summary>
         internal static void WriteResourceToFile(string resourceName, string fileName)
         {
-            using (var resource = System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName))
+            using (var resource = Assembly.GetExecutingAssembly()?.GetManifestResourceStream(resourceName))
             {
                 using (var file = new FileStream(fileName, FileMode.Create, FileAccess.Write))
                 {
@@ -113,10 +116,39 @@ namespace PN.Utils
             }
         }
 
+        internal static T AddCollectionChangedEvent<T>(T SourceObject, 
+            NotifyCollectionChangedEventHandler notifyCollectionChangedEventHandler, 
+            PropertyChangedEventHandler propertyChangedEventHandler)
+        {
+            if (SourceObject != null && typeof(T) == typeof(ObservableCollection<>))
+            {
+                if (notifyCollectionChangedEventHandler != null)
+                {
+                    var asCC = SourceObject as INotifyCollectionChanged;
+                    asCC.CollectionChanged += notifyCollectionChangedEventHandler;
+                }
+
+                if (propertyChangedEventHandler != null)
+                {
+                    var asPC = SourceObject as INotifyPropertyChanged;
+                    asPC.PropertyChanged += propertyChangedEventHandler;
+                }
+            }
+
+            return SourceObject;
+        }
+
+        internal static bool IsObservableCollection(Type type)
+        {
+            return type.IsGenericType &&
+                  !type.IsGenericTypeDefinition &&
+                   type.GetGenericTypeDefinition() == typeof(ObservableCollection<>);
+        }
+
         /// <summary>
         /// Returns all avaliable in dll resource's names.
         /// </summary>
-        internal static List<string> ManifestResourceNames 
+        internal static List<string> ManifestResourceNames
             => System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceNames().ToList();
 
 
@@ -189,7 +221,7 @@ namespace PN.Utils
                 }
             }
             else return os.Platform.ToString();
-                
+
             //Make sure we actually got something in our OS check
             //We don't want to just return " Service Pack 2" or " 32-bit"
             //That information is useless without the OS version.

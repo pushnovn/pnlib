@@ -34,4 +34,19 @@ namespace PN.Storage
             public string Value { get; set; }
         }
     }
+
+    public static class MySSSOverSQLiteExtensions
+    {
+   //     public static T IndexOf
+
+        static System.Collections.Generic.Dictionary<object, System.Guid> objects_guids2 = new System.Collections.Generic.Dictionary<object, System.Guid>();
+
+        public static System.Guid GetGUIDNew(this object o)
+        {
+            if (objects_guids2.ContainsKey(o))
+                return objects_guids2[o];
+
+            return objects_guids2[o] = System.Guid.NewGuid();
+        }
+    }
 }

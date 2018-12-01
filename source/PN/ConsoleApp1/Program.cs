@@ -18,9 +18,9 @@ namespace ConsoleApp1
 {
     class Program
     {
-        #region
+        #region Models
 
-        [SQLite.SQLiteName("Value_")]
+        [SQLite.SQLiteName("Value")]
         private class Value
         {
             public int Id { get; set; }
@@ -46,7 +46,6 @@ namespace ConsoleApp1
             public List<User> Authors { get; set; }
         }
 
-        #endregion
         
 
         public class Post
@@ -91,9 +90,66 @@ namespace ConsoleApp1
             public string AirportTo { get; set; }
         }
 
+        #endregion
 
         static void Main(string[] args)
         {
+            SQLite.PathToDB = "test.db";
+
+            var lssst = new List<Value>()
+            {
+                new Value() { Valuesss = "TEST_Valll1", ListV = new List<string>() { "v1", "v2", "v3" }, Id = 12 },
+                new Value() { Valuesss = "TEST_Valll2", ListV = new List<string>() { "v1", "v2", "v3" } },
+                new Value() { Valuesss = "TEST_Valll3", ListV = new List<string>() { "v1", "v2", "v3" }, Id = 3 },
+                new Value() { Valuesss = "TEST_Valll4", ListV = new List<string>() { "v1", "v2", "v3" } },
+            };
+
+            var res = SQLite.SetOrUpdate(lssst);
+
+
+            
+
+
+
+            Console.ReadKey();
+
+            return;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             var testColl = new ObservableCollection<string>()
                 //.ToList()
                 ;
@@ -297,34 +353,34 @@ namespace ConsoleApp1
 
 
 
-            var nws = SQLite.WhereAND(null, Is.LimitedBy, 10)
-                            .Where("Title", Is.Equals, "table")
-                            .Where("Title", Is.LimitedBy, 20)
-                            .Where("Title", Is.Contains, "table")
-                            .Where("Title", Is.LessThen, "table")
-                            .Where("Title", Is.NotEquals, "table")
-                            .Where("Title", Is.Between, "1", "2")
-                            .Where("Title", Is.BiggerThen, "table")
-                            .Where("Title", Is.Reversed, true)
-                            .Where("Title", Is.ContainsAnythingFrom, "1", "2", "3")
-                            .Where("Title", Is.Reversed, true)
-                            .Where("Title", Is.Reversed, true)
-                            .Get<New>();
+            //var nws = SQLite.WhereAND(null, Is.LimitedBy, 10)
+            //                .Where("Title", Is.Equals, "table")
+            //                .Where("Title", Is.LimitedBy, 20)
+            //                .Where("Title", Is.Contains, "table")
+            //                .Where("Title", Is.LessThen, "table")
+            //                .Where("Title", Is.NotEquals, "table")
+            //                .Where("Title", Is.Between, "1", "2")
+            //                .Where("Title", Is.BiggerThen, "table")
+            //                .Where("Title", Is.Reversed, true)
+            //                .Where("Title", Is.ContainsAnythingFrom, "1", "2", "3")
+            //                .Where("Title", Is.Reversed, true)
+            //                .Where("Title", Is.Reversed, true)
+            //                .Get<New>();
             
 
-            var nws2 = SQLite.WhereOR(null,  Is.LimitedBy, 10)
-                             .Where("Title", Is.Equals, "table")
-                             .Where("Title", Is.LimitedBy, 20)
-                             .Where("Title", Is.Contains, "table")
-                             .Where("Title", Is.LessThen, "table")
-                             .Where("Title", Is.NotEquals, "table")
-                             .Where("Title", Is.Between, "1", "2")
-                             .Where("Title", Is.BiggerThen, "table")
-                             .Where("Title", Is.Reversed, true)
-                             .Where("Title", Is.ContainsAnythingFrom, "1", "2", "3")
-                             .Where("Title", Is.Reversed, true)
-                             .Where("Title", Is.Reversed, true)
-                             .Get<New>();
+            //var nws2 = SQLite.WhereOR(null,  Is.LimitedBy, 10)
+            //                 .Where("Title", Is.Equals, "table")
+            //                 .Where("Title", Is.LimitedBy, 20)
+            //                 .Where("Title", Is.Contains, "table")
+            //                 .Where("Title", Is.LessThen, "table")
+            //                 .Where("Title", Is.NotEquals, "table")
+            //                 .Where("Title", Is.Between, "1", "2")
+            //                 .Where("Title", Is.BiggerThen, "table")
+            //                 .Where("Title", Is.Reversed, true)
+            //                 .Where("Title", Is.ContainsAnythingFrom, "1", "2", "3")
+            //                 .Where("Title", Is.Reversed, true)
+            //                 .Where("Title", Is.Reversed, true)
+            //                 .Get<New>();
 
 
 
