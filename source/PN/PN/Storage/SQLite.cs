@@ -1295,7 +1295,7 @@ namespace PN.Storage
             if (value is double || value is float || value is decimal)
                 return value.ToString().Replace(',','.');
 
-            if (value is string)
+            if (value is string || value is Enum)
                 return $"'{value}'";
 
             if (value is bool)

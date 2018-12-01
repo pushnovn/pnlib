@@ -95,6 +95,8 @@ namespace ConsoleApp1
         static void Main(string[] args)
         {
             SQLite.PathToDB = "test.db";
+            SQLite.PathToDB = @"C:\Repos\air-ibm-mq\source\IBM_Server\IBM_Server\AirDB.db";
+            //
 
             var lssst = new List<Value>()
             {
