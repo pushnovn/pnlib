@@ -223,7 +223,7 @@ namespace PN.Storage
                 var props = GetSQLitePropertiesFromType(resultType);
 
                 // Открываем соединение к БД (после запроса автоматом закроем его)
-                using (SQLiteConnection conn = GetConnection())
+                using (var conn = GetConnection())
                 {
                     conn.Open();
                     var command = conn.CreateCommand();
@@ -240,7 +240,7 @@ namespace PN.Storage
                             command.CommandText = $"SELECT COUNT(*) FROM {tableName} {CreateWherePartOfSqlRequest(where, props)}";
                             try
                             {
-                                using (SQLiteDataReader sqliteDataReader = command.ExecuteReader())
+                                using (var sqliteDataReader = command.ExecuteReader())
                                 {
                                     sqliteDataReader.Read();
                                     return sqliteDataReader.GetInt32(0);
@@ -531,26 +531,31 @@ namespace PN.Storage
             {
                 try
                 {
-                    using (SQLiteDataReader sqliteDataReader = command.ExecuteReader())
+                    using (var sqliteDataReader = command.ExecuteReader())
                     {
                         var resultList = Utils.Internal.CreateList(resultType);
 
                         while (sqliteDataReader.Read())
                         {
                             var resObj = Activator.CreateInstance(resultType);
+							var props = GetSQLitePropertiesFromType(resultType);
 
-                            foreach (var prop in GetSQLitePropertiesFromType(resultType))
+							foreach (var prop in GetSQLitePropertiesFromType(resultType))
                             {
                                 var propertyNameInTable = GetPropertyNameInTable(prop);
-                                var objectFromSQLiteDataReader = sqliteDataReader[propertyNameInTable];
-                                object objectToSetToProperty;
+								var objectFromSQLiteDataReader = sqliteDataReader[propertyNameInTable];
+								object objectToSetToProperty;
 
                                 try
                                 {
-                                    if (objectFromSQLiteDataReader == DBNull.Value)
+									if (objectFromSQLiteDataReader == DBNull.Value)
                                     {
                                         objectToSetToProperty = Utils.Internal.CreateDefaultObject(prop.PropertyType);
                                     }
+									else if (prop.PropertyType.IsEnum)
+									{
+										objectToSetToProperty = Convert.ChangeType(Enum.Parse(prop.PropertyType, objectFromSQLiteDataReader.ToString(), true), prop.PropertyType);
+									}
                                     else if (prop.PropertyType == typeof(bool) && SQLite.BooleanType == BooleanStorageType.Integer)
                                     {
                                         objectToSetToProperty = (long)objectFromSQLiteDataReader == 1;
@@ -594,11 +599,11 @@ namespace PN.Storage
             // It's may be Get | Set | Update | Delete
             private static string GetCurrentMethodName()
             {
-                StackTrace st = new StackTrace();
+                var st = new StackTrace();
 
                 // frame 1 = ExecuteQuery
                 // frame 2 = Get | Set | Update | Delete
-                StackFrame sf = st.GetFrame(2);
+                var sf = st.GetFrame(2);
                 return sf.GetMethod().Name;
             }
 
@@ -626,10 +631,10 @@ namespace PN.Storage
             {
                 try
                 {
-                    using (SQLiteConnection conn = GetConnection())
+                    using (var conn = GetConnection())
                     {
                         conn.Open();
-                        using (SQLiteCommand command = new SQLiteCommand("PRAGMA schema_version;", conn))
+                        using (var command = new SQLiteCommand("PRAGMA schema_version;", conn))
                         {
                             var ret = command.ExecuteScalar();
                         }
@@ -690,7 +695,7 @@ namespace PN.Storage
                 if (m.Method.DeclaringType == typeof(Queryable) && m.Method.Name == "Where")
                 {
                     Visit(m.Arguments[0]);
-                    LambdaExpression lambda = (LambdaExpression)StripQuotes(m.Arguments[1]);
+                    var lambda = (LambdaExpression)StripQuotes(m.Arguments[1]);
                     Visit(lambda.Body);
                     return m;
                 }
@@ -698,7 +703,7 @@ namespace PN.Storage
                 {
                     if (ParseTakeExpression(m))
                     {
-                        Expression nextExpression = m.Arguments[0];
+                        var nextExpression = m.Arguments[0];
                         return Visit(nextExpression);
                     }
                 }
@@ -706,7 +711,7 @@ namespace PN.Storage
                 {
                     if (ParseSkipExpression(m))
                     {
-                        Expression nextExpression = m.Arguments[0];
+                        var nextExpression = m.Arguments[0];
                         return Visit(nextExpression);
                     }
                 }
@@ -714,7 +719,7 @@ namespace PN.Storage
                 {
                     if (ParseOrderByExpression(m, "ASC"))
                     {
-                        Expression nextExpression = m.Arguments[0];
+                        var nextExpression = m.Arguments[0];
                         return Visit(nextExpression);
                     }
                 }
@@ -722,7 +727,7 @@ namespace PN.Storage
                 {
                     if (ParseOrderByExpression(m, "DESC"))
                     {
-                        Expression nextExpression = m.Arguments[0];
+                        var nextExpression = m.Arguments[0];
                         return Visit(nextExpression);
                     }
                 }
@@ -823,7 +828,7 @@ namespace PN.Storage
 
             protected override Expression VisitConstant(ConstantExpression c)
             {
-                IQueryable q = c.Value as IQueryable;
+                var q = c.Value as IQueryable;
 
                 if (q == null && c.Value == null)
                 {
@@ -886,12 +891,12 @@ namespace PN.Storage
 
             private bool ParseOrderByExpression(MethodCallExpression expression, string order)
             {
-                UnaryExpression unary = (UnaryExpression)expression.Arguments[1];
-                LambdaExpression lambdaExpression = (LambdaExpression)unary.Operand;
+                var unary = (UnaryExpression)expression.Arguments[1];
+                var lambdaExpression = (LambdaExpression)unary.Operand;
 
                 lambdaExpression = (LambdaExpression)Evaluator.PartialEval(lambdaExpression);
 
-                MemberExpression body = lambdaExpression.Body as MemberExpression;
+                var body = lambdaExpression.Body as MemberExpression;
                 if (body != null)
                 {
                     if (string.IsNullOrEmpty(OrderBy))
@@ -911,7 +916,7 @@ namespace PN.Storage
 
             private bool ParseTakeExpression(MethodCallExpression expression)
             {
-                ConstantExpression sizeExpression = (ConstantExpression)expression.Arguments[1];
+                var sizeExpression = (ConstantExpression)expression.Arguments[1];
 
                 int size;
                 if (int.TryParse(sizeExpression.Value.ToString(), out size))
@@ -925,7 +930,7 @@ namespace PN.Storage
 
             private bool ParseSkipExpression(MethodCallExpression expression)
             {
-                ConstantExpression sizeExpression = (ConstantExpression)expression.Arguments[1];
+                var sizeExpression = (ConstantExpression)expression.Arguments[1];
 
                 int size;
                 if (int.TryParse(sizeExpression.Value.ToString(), out size))
@@ -1027,8 +1032,8 @@ namespace PN.Storage
                         {
                             return e;
                         }
-                        LambdaExpression lambda = Expression.Lambda(e);
-                        Delegate fn = lambda.Compile();
+                        var lambda = Expression.Lambda(e);
+                        var fn = lambda.Compile();
                         return Expression.Constant(fn.DynamicInvoke(null), e.Type);
                     }
 
@@ -1067,7 +1072,7 @@ namespace PN.Storage
                     {
                         if (expression != null)
                         {
-                            bool saveCannotBeEvaluated = this.cannotBeEvaluated;
+                            var saveCannotBeEvaluated = this.cannotBeEvaluated;
                             this.cannotBeEvaluated = false;
                             base.Visit(expression);
                             if (!this.cannotBeEvaluated)
