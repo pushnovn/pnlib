@@ -28,7 +28,7 @@ namespace PN.Network.IBM
 
         private static void ExtractDll(bool rewriteFileIfExists = true)
         {
-            if(File.Exists("amqmdnet.dll") && rewriteFileIfExists == false)
+            if (File.Exists("amqmdnet.dll") && rewriteFileIfExists == false)
                 return;
 
             try { File.Delete("amqmdnet.dll"); }
@@ -94,7 +94,7 @@ namespace PN.Network.IBM
                     Format = MQC.MQFMT_STRING
                 };
 
-                if(message == null)
+                if (message == null)
                 {
                     GetOrCreateQueue(queueName, true).Get(mqmessage, new MQGetMessageOptions());
 
@@ -109,9 +109,9 @@ namespace PN.Network.IBM
                     return null;
                 }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
-                if(ex is MQException mqexception && mqexception.ReasonCode == MQ_EXCEPTION_EMPTY_QUEUE)
+                if (ex is MQException mqexception && mqexception.ReasonCode == MQ_EXCEPTION_EMPTY_QUEUE)
                 {
                     return null;
                 }
@@ -124,13 +124,13 @@ namespace PN.Network.IBM
         {
             var maybeQueueConnection = QueueConnections.FirstOrDefault(qc => qc.QueueName == queueName);
 
-            if(maybeQueueConnection == null)
+            if (maybeQueueConnection == null)
             {
                 maybeQueueConnection = new QueueConnection() { QueueName = queueName };
                 QueueConnections.Add(maybeQueueConnection);
             }
 
-            if(isGet)
+            if (isGet)
                 return (maybeQueueConnection.QueueGET = maybeQueueConnection.QueueGET ?? GetConnection().AccessQueue(queueName, QUEUE_GET_OPEN_OPTIONS));
             else
                 return (maybeQueueConnection.QueuePUT = maybeQueueConnection.QueuePUT ?? GetConnection().AccessQueue(queueName, QUEUE_PUT_OPEN_OPTIONS));
@@ -155,9 +155,15 @@ namespace PN.Network.IBM
             var sub = new Subscription { Name = queueName };
             sub.Thread = new Thread(() =>
             {
-                var localMqQueue = GetConnectionNew(CurrentSettings).AccessQueue(sub.Name, MQC.MQOO_INPUT_AS_Q_DEF | MQC.MQOO_FAIL_IF_QUIESCING);
+                var localMqQueue = GetConnectionNew(CurrentSettings)?.AccessQueue(sub.Name, MQC.MQOO_INPUT_AS_Q_DEF | MQC.MQOO_FAIL_IF_QUIESCING);
 
-                while(localMqQueue.IsOpen)
+                if (localMqQueue == null)
+                {
+                    Unsubscribe(sub.Name, false);
+                    return;
+                }
+
+                while (localMqQueue.IsOpen)
                 {
                     try
                     {
@@ -177,9 +183,9 @@ namespace PN.Network.IBM
                             Message = messageForGet.ReadLine(),
                         });
                     }
-                    catch(Exception ex)
+                    catch (Exception ex)
                     {
-                        if(ex is MQException mqexception && mqexception.ReasonCode == MQ_EXCEPTION_EMPTY_QUEUE)
+                        if (ex is MQException mqexception && mqexception.ReasonCode == MQ_EXCEPTION_EMPTY_QUEUE)
                         {
                             OnSubscriptionEvent?.Invoke(new SubscriptionEventArgs()
                             {
@@ -213,9 +219,9 @@ namespace PN.Network.IBM
         private static void Unsubscribe(string queueName, bool abortThread)
         {
             var subscription = Subscriptions.FirstOrDefault(x => x.Name == queueName);
-            if(subscription != null)
+            if (subscription != null)
             {
-                if(abortThread)
+                if (abortThread)
                 {
                     subscription.Thread.Abort();
                 }
@@ -245,10 +251,10 @@ namespace PN.Network.IBM
 
         public static void UpdateConnection(Settings settings) => GetConnection(settings);
 
-        private static MQQueueManager MqQueueManager{ get;set;}
+        private static MQQueueManager MqQueueManager { get; set; }
         private static MQQueueManager GetConnection(Settings settings = null)
         {
-            if(MqQueueManager == null || settings != null)
+            if (MqQueueManager == null || settings != null)
             {
                 QueueConnections.Clear();
                 CurrentSettings = settings ?? CurrentSettings;
@@ -257,10 +263,10 @@ namespace PN.Network.IBM
 
             try
             {
-                if(MqQueueManager.IsConnected == false)
+                if (MqQueueManager.IsConnected == false)
                     MqQueueManager.Connect(CurrentSettings.QueueManagerName);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 OnSubscriptionEvent?.Invoke(new SubscriptionEventArgs() { Exception = ex, Type = SubscriptionEventType.Exception });
             }
@@ -270,19 +276,19 @@ namespace PN.Network.IBM
 
         private static MQQueueManager GetConnectionNew(Settings settings)
         {
-            if(settings == null)
+            if (settings == null)
                 return null;
 
             try
             {
                 var mqQueueManager = new MQQueueManager(settings.QueueManagerName, CreateConnectionHashtableProperties(settings));
 
-                if(mqQueueManager.IsConnected == false)
+                if (mqQueueManager.IsConnected == false)
                     mqQueueManager.Connect(settings.QueueManagerName);
 
                 return mqQueueManager;
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 OnSubscriptionEvent?.Invoke(new SubscriptionEventArgs() { Exception = ex, Type = SubscriptionEventType.Exception });
             }
@@ -299,7 +305,7 @@ namespace PN.Network.IBM
                 { MQC.PORT_PROPERTY, settings.Port},
             };
 
-            if(string.IsNullOrEmpty(settings.UserId) || string.IsNullOrEmpty(settings.Password))
+            if (string.IsNullOrEmpty(settings.UserId) || string.IsNullOrEmpty(settings.Password))
                 return hashtable;
 
             hashtable.Add(MQC.USER_ID_PROPERTY, settings.UserId);
@@ -310,13 +316,16 @@ namespace PN.Network.IBM
 
         public static void Disconnect()
         {
-            if (IsConnected) 
+            if (IsConnected)
             {
                 MqQueueManager.Disconnect();
             }
 
+            try { CurrentSubscriptions.ForEach(item => Unsubscribe(item)); }
+            catch { }
+
             MqQueueManager = null;
-            
+
             ClearEventSubscriptions();
         }
 
@@ -329,7 +338,7 @@ namespace PN.Network.IBM
 
         public static event SubscriptionEventHandler OnSubscriptionEvent;
 
-        public class SubscriptionEventArgs:EventArgs
+        public class SubscriptionEventArgs : EventArgs
         {
             public SubscriptionEventArgs() { }
             public SubscriptionEventArgs(Exception exception)

@@ -10,6 +10,7 @@
     <description>Internal PN lib</description>
     <releaseNotes>
 - Updated Export module.
+- Minor updating MQ module.
     </releaseNotes>
     <projectUrl>http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http</projectUrl>
     <copyright>Copyright 2018</copyright>
