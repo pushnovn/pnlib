@@ -1,75 +1,163 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Collections.Generic;
-
-using NPOI.HSSF.UserModel;
-using NPOI.XSSF.UserModel;
-using NPOI.SS.UserModel;
+using System.Text;
 using iTextSharp.text;
 using iTextSharp.text.pdf;
-using System.Text;
-using System.Collections;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Internal;
+using NPOI.HSSF.UserModel;
+using NPOI.SS.UserModel;
+using NPOI.XSSF.UserModel;
+
+// ReSharper disable All
 
 namespace PN.Storage
-{  
+{
     /// <summary>
-    /// Exporting module.
+    ///     Exporting module.
     /// </summary>
     public class ExportЁr
     {
         #region public "interface"
 
         /// <summary>
-        /// Export to XLSX format file.
+        ///     Export to XLSX format file.
         /// </summary>
-        public static byte[] ToXLSX(bool withHeader, params object[] objects) => ToExport(withHeader, Format.XLSX, objects);
+        public static byte[] ToXLSX(bool withHeader, params object[] objects) => ToExport(withHeader, ExportFormat.XLSX, objects);
 
         /// <summary>
-        /// Export to XLSX format file.
+        ///     Export to XLSX format file.
         /// </summary>
-        public static byte[] ToXLS(bool withHeader, params object[] objects) => ToExport(withHeader, Format.XLS, objects);
-
-
-        /// <summary>
-        ///Import List<T> from file (<paramref name="bytes"/>).
-        /// </summary>
-        public static List<T> FromXLSX<T>(bool withHeader, byte[] bytes) => ToImport<T>(withHeader, Format.XLSX, bytes);
-
-        /// <summary>
-        ///Import List<T> from file (<paramref name="bytes"/>).
-        /// </summary>
-        public static List<T> FromXLS<T>(bool withHeader, byte[] bytes) => ToImport<T>(withHeader, Format.XLS, bytes);
+        public static byte[] ToXLS(bool withHeader, params object[] objects) => ToExport(withHeader, ExportFormat.XLS, objects);
 
 
         /// <summary>
-        /// Export to PDF format file.
+        ///     Import List<T></T> from file (<paramref name="bytes" />).
         /// </summary>
-        public static byte[] ToPDF(bool withHeader, params object[] objects) => ToExport(withHeader, Format.PDF, objects);
+        public static List<T> FromXLSX<T>(bool withHeader, byte[] bytes, out List<ImportError> errors) => ToImport<T>(withHeader, ExportFormat.XLSX, bytes, out errors);
 
         /// <summary>
-        /// Import List<T> from file (<paramref name="bytes"/>).
+        ///     Import List<T></T> from file (<paramref name="bytes" />).
         /// </summary>
-        public static List<T> FromPDF<T>(bool withHeader, byte[] bytes) => ToImport<T>(withHeader, Format.PDF, bytes);
-
-
-        /// <summary>
-        /// Export to PDF format file.
-        /// </summary>
-        public static byte[] ToCSV(bool withHeader, params object[] objects) => ToExport(withHeader, Format.CSV, objects);
+        public static List<T> FromXLS<T>(bool withHeader, byte[] bytes, out List<ImportError> errors) => ToImport<T>(withHeader, ExportFormat.XLS, bytes, out errors);
 
 
         /// <summary>
-        /// Import List<T> from file (<paramref name="bytes"/>).
+        ///     Export to PDF format file.
         /// </summary>
-        public static List<T> FromCSV<T>(bool withHeader, byte[] bytes) => ToImport<T>(withHeader, Format.CSV, bytes);
+        public static byte[] ToPDF(bool withHeader, params object[] objects) => ToExport(withHeader, ExportFormat.PDF, objects);
+
+        /// <summary>
+        ///     Import List<T></T> from file (<paramref name="bytes" />).
+        /// </summary>
+        public static List<T> FromPDF<T>(bool withHeader, byte[] bytes, out List<ImportError> errors) => ToImport<T>(withHeader, ExportFormat.PDF, bytes, out errors);
+
+
+        /// <summary>
+        ///     Export to PDF format file.
+        /// </summary>
+        public static byte[] ToCSV(bool withHeader, params object[] objects) => ToExport(withHeader, ExportFormat.CSV, objects);
+
+
+        /// <summary>
+        ///     Import List<T></T> from file (<paramref name="bytes" />).
+        /// </summary>
+        public static List<T> FromCSV<T>(bool withHeader, byte[] bytes, out List<ImportError> errors) => ToImport<T>(withHeader, ExportFormat.CSV, bytes, out errors);
+
+
+        /// <summary>
+        ///     Import List<T></T> from file (<paramref name="bytes" />).
+        /// </summary>
+        public static List<T> FromIndefined<T>(bool withHeader, FormFile iFormFile, out List<ImportError> errors)
+        {
+            errors = new List<ImportError>();
+            if (iFormFile.Length <= 0)
+            {
+                errors?.Add(new ImportError()
+                {
+                    Exception = new Exception("IFormFile is empty.")
+                });
+
+                return new List<T>();
+            }
+
+            var fileExtension = iFormFile.FileName.Split('.').LastOrDefault();
+            if (SupportedImportFilesExtensions.IndexOf(fileExtension) == -1)
+            {
+                errors?.Add(new ImportError()
+                {
+                    Exception = new Exception("File not supported.")
+                });
+
+                return new List<T>();
+            }
+
+            using (var ms = new MemoryStream())
+            {
+                iFormFile.CopyTo(ms);
+                return FromIndefined<T>(withHeader, ms.ToArray(), out errors);
+            }
+        }
+
+        public delegate List<T> ImportDelegate<T>(bool withHeader, byte[] bytes, out List<ImportError> errors);
+
+        /// <summary>
+        ///     Import List<T></T> from file (<paramref name="bytes" />).
+        /// </summary>
+        public static List<T> FromIndefined<T>(bool withHeader, byte[] bytes, out List<ImportError> errors)
+        {
+            var functions = new ImportDelegate<T>[]
+            {
+                FromXLSX<T>, FromXLS<T>, FromCSV<T>, FromPDF<T>
+            };
+            foreach (var del in functions)
+            {
+                try
+                {
+                    return del.Invoke(withHeader, bytes, out errors);
+                }
+                catch { }
+            }
+
+            errors = new List<ImportError>();
+            errors?.Add(new ImportError()
+            {
+                Exception = new Exception("Parse failed, sorry.")
+            });
+
+            return new List<T>();
+        }
+
+        public static byte[] ToSmthByFormat(ExportFormat exportFormat, bool withHeader, params object[] objects)
+        {
+            switch (exportFormat)
+            {
+                case ExportFormat.XLSX:
+                    return ToXLSX(withHeader, objects);
+
+                case ExportFormat.CSV:
+                    return ToCSV(withHeader, objects);
+
+                case ExportFormat.PDF:
+                    return ToPDF(withHeader, objects);
+
+                case ExportFormat.XLS:
+                    return ToXLS(withHeader, objects);
+
+                default:
+                    return null;
+            }
+        }
 
         #endregion
 
         #region ToExport / ToImport
 
-        private static byte[] ToExport(bool withHeader, Format format, params object[] objects)
+        private static byte[] ToExport(bool withHeader, ExportFormat format, params object[] objects)
         {
             objects = ConvertArrayWithSingleListToArrayOfItems(objects);
 
@@ -80,16 +168,16 @@ namespace PN.Storage
 
             switch (format)
             {
-                case Format.XLSX:
+                case ExportFormat.XLSX:
                     return GenerateXLSX(withHeader, objects.ToList(), props);
 
-                case Format.XLS:
+                case ExportFormat.XLS:
                     return GenerateXLS(withHeader, objects.ToList(), props);
 
-                case Format.PDF:
+                case ExportFormat.PDF:
                     return GeneratePDF(withHeader, objects.ToList(), props);
 
-                case Format.CSV:
+                case ExportFormat.CSV:
                     return GenerateCSV(withHeader, objects.ToList(), props);
 
                 default:
@@ -97,23 +185,24 @@ namespace PN.Storage
             }
         }
 
-        private static List<T> ToImport<T>(bool withHeader, Format format, byte[] bytes)
+        private static List<T> ToImport<T>(bool withHeader, ExportFormat format, byte[] bytes, out List<ImportError> errors)
         {
             var props = GetExportPropertiesFromType(typeof(T));
+            errors = new List<ImportError>();
 
             switch (format)
             {
-                case Format.XLSX:
-                    return ParseXLSX<T>(withHeader, bytes, props);
+                case ExportFormat.XLSX:
+                    return ParseXLSX<T>(withHeader, bytes, props, out errors);
 
-                case Format.XLS:
-                    return ParseXLS<T>(withHeader, bytes, props);
+                case ExportFormat.XLS:
+                    return ParseXLS<T>(withHeader, bytes, props, out errors);
 
-                case Format.PDF:
+                case ExportFormat.PDF:
                     return ParsePDF<T>(withHeader, bytes, props);
 
-                case Format.CSV:
-                    return ParseCSV<T>(withHeader, bytes, props);
+                case ExportFormat.CSV:
+                    return ParseCSV<T>(withHeader, bytes, props, out errors);
 
                 default:
                     return null;
@@ -126,7 +215,9 @@ namespace PN.Storage
         #region XLSX
 
         private static byte[] GenerateXLSX(bool withHeader, List<object> objects, List<PropertyInfo> props) => GenerateExcel(withHeader, objects, props);
+
         private static byte[] GenerateXLS(bool withHeader, List<object> objects, List<PropertyInfo> props) => GenerateExcel(withHeader, objects, props, false);
+
         private static byte[] GenerateExcel(bool withHeader, List<object> objects, List<PropertyInfo> props, bool isXlsx = true)
         {
             var workbook = CreateExcelWorkbook(isXlsx);
@@ -156,7 +247,11 @@ namespace PN.Storage
             }
 
             for (int i = 0; i < props.Count; i++)
-                sheet.AutoSizeColumn(i);
+                try
+                {
+                    sheet.AutoSizeColumn(i);
+                }
+                catch { }
 
             using (var stream = new MemoryStream())
             {
@@ -166,30 +261,50 @@ namespace PN.Storage
             }
         }
 
-        private static List<T> ParseXLSX<T>(bool withHeader, byte[] bytes, List<PropertyInfo> props) => ParseExcel<T>(withHeader, bytes, props);
-        private static List<T> ParseXLS<T>(bool withHeader, byte[] bytes, List<PropertyInfo> props) => ParseExcel<T>(withHeader, bytes, props, false);
-        private static List<T> ParseExcel<T>(bool withHeader, byte[] bytes, List<PropertyInfo> props, bool isXlsx = true)
+
+        private static List<T> ParseXLSX<T>(bool withHeader, byte[] bytes, List<PropertyInfo> props, out List<ImportError> errors) =>
+                ParseExcel<T>(withHeader, bytes, props, out errors);
+
+        private static List<T> ParseXLS<T>(bool withHeader, byte[] bytes, List<PropertyInfo> props, out List<ImportError> errors) =>
+                ParseExcel<T>(withHeader, bytes, props, out errors, false);
+
+        private static List<T> ParseExcel<T>(bool withHeader, byte[] bytes, List<PropertyInfo> props, out List<ImportError> errors, bool isXlsx = true)
         {
             var resultList = CreateList<T>();
-            
+
             var workbook = CreateExcelWorkbook(isXlsx, bytes);
-            
+
             var sheet = workbook.GetSheet(typeof(T).GetCustomAttribute<ExportNameAttribute>()?.Name ?? "Информация");
+
+            errors = new List<ImportError>();
 
             for (int row = withHeader ? 1 : 0; row <= sheet.LastRowNum; row++)
             {
                 var currentRow = sheet.GetRow(row);
 
-                if (currentRow == null)
+                if (currentRow == null || currentRow.Cells.All(d => d.CellType == CellType.Blank))
                     continue;
 
                 var resObj = Activator.CreateInstance<T>();
 
-                for (int i = 0; i < props.Count; i++)
+                for (int column = 0; column < props.Count; column++)
                 {
-                    var strValue = currentRow.GetCell(i + 1).StringCellValue ?? string.Empty;
+                    try
+                    {
+                        var strValue = currentRow.GetCell(column + 1).StringCellValue ?? string.Empty;
 
-                    props[i].SetValue(resObj, Convert.ChangeType(strValue, props[i].PropertyType));
+                        props[column].SetValue(resObj, Convert.ChangeType(strValue, props[column].PropertyType));
+                    }
+                    catch (Exception ex)
+                    {
+                        errors.Add(new ImportError()
+                        {
+                            Row = row + (withHeader ? 0 : 1),
+                            Column = column + 1,
+                            Exception = ex,
+                            ColumnName = props[column].GetCustomAttribute<ExportNameAttribute>()?.Name ?? props[column].Name,
+                        });
+                    }
                 }
 
                 resultList.Add(resObj);
@@ -217,7 +332,7 @@ namespace PN.Storage
         private static byte[] GeneratePDF(bool withHeader, List<object> objects, List<PropertyInfo> props)
         {
             using (var stream = new MemoryStream())
-            using (var document = new Document(PageSize.A4, 10, 10, 10, 10))
+            using (var document = new Document(PropsCountToPageSize(props.Count), 10, 10, 10, 10))
             using (var writer = PdfWriter.GetInstance(document, stream))
             {
                 document.Open();
@@ -232,7 +347,7 @@ namespace PN.Storage
                         table.AddCell(CreatePhrase(props[i].GetCustomAttribute<ExportNameAttribute>()?.Name ?? props[i].Name));
                     }
                 }
-                
+
                 for (int j = 0; j < objects.Count; j++)
                 {
                     table.AddCell((j + 1).ToString());
@@ -245,15 +360,15 @@ namespace PN.Storage
 
                 #region Meta info for parsing future importing PDFs
 
-                var field = new TextField(writer, new Rectangle(0, 0, 0, 0), "hidden-text")
-                {
-                    Text = Encoding.UTF8.GetString(ToCSV(withHeader, objects)),
-                    Visibility = BaseField.HIDDEN,
-                };
-                writer.AddAnnotation(field.GetTextField());
-                
+                //var field = new TextField(writer, new Rectangle(0, 0, 0, 0), "hidden-text")
+                //{
+                //    Text = Encoding.UTF8.GetString(ToCSV(withHeader, objects)),
+                //    Visibility = BaseField.HIDDEN,
+                //};
+                //writer.AddAnnotation(field.GetTextField());
+
                 #endregion
-                
+
                 document.Add(table);
 
                 document.Close();
@@ -270,15 +385,19 @@ namespace PN.Storage
             var curAnnot = annotArray.GetAsDict(0);
             var strWithCSV = curAnnot.GetAsString(PdfName.V).ToString();
             var bytesFromCSV = Encoding.UTF8.GetBytes(strWithCSV);
-            return FromCSV<T>(withHeader, bytesFromCSV);
+            var errors = new List<ImportError>();
+            return FromCSV<T>(withHeader, bytesFromCSV, out errors);
         }
 
         private static Phrase CreatePhrase(string text)
         {
-            return new Phrase(text, GetCalibri());
+            return new Phrase(text, PdfExportFont);
         }
 
-        private static Font GetCalibri()
+        private static Font _pdfExportFont;
+        private static Font PdfExportFont => _pdfExportFont ?? (_pdfExportFont = UpdateFont());
+
+        private static Font UpdateFont()
         {
             try
             {
@@ -286,14 +405,35 @@ namespace PN.Storage
                 if (!FontFactory.IsRegistered(fontName))
                 {
                     string someFontTTF = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "Calibri.TTF");
+
+                    Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
                     FontFactory.Register(someFontTTF);
                 }
-                return FontFactory.GetFont(fontName, BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+
+                return FontFactory.GetFont(fontName, BaseFont.IDENTITY_H, BaseFont.EMBEDDED, 10.0f);
             }
-            catch
+            catch (Exception ex)
             {
                 return new Font(Font.FontFamily.TIMES_ROMAN);
             }
+        }
+
+        private static Rectangle PropsCountToPageSize(int count)
+        {
+            if (count <= 6)
+                return PageSize.A4;
+
+            if (count <= 12)
+                return PageSize.A3;
+
+            if (count <= 18)
+                return PageSize.A2;
+
+            if (count <= 24)
+                return PageSize.A1;
+
+            return PageSize.A0;
         }
 
         #endregion
@@ -312,7 +452,7 @@ namespace PN.Storage
                     result += $",{(props[i].GetCustomAttribute<ExportNameAttribute>()?.Name ?? props[i].Name)}";
                 }
             }
-            
+
             for (int j = 0; j < objects.Count; j++)
             {
                 result += Environment.NewLine;
@@ -328,15 +468,18 @@ namespace PN.Storage
         }
 
 
-        private static List<T> ParseCSV<T>(bool withHeader, byte[] bytes, List<PropertyInfo> props)
+        private static List<T> ParseCSV<T>(bool withHeader, byte[] bytes, List<PropertyInfo> props, out List<ImportError> errors)
         {
             var resultList = CreateList<T>();
 
             var text = Encoding.UTF8.GetString(bytes);
 
-            var rows = text.Split(new string[] { Environment.NewLine }, StringSplitOptions.None).ToList();
+            var rows = text.Split(NewLineSeparator, StringSplitOptions.None).ToList();
+
             if (withHeader)
                 rows.RemoveAt(0);
+
+            errors = new List<ImportError>();
 
             foreach (var row in rows)
             {
@@ -344,11 +487,24 @@ namespace PN.Storage
 
                 var resObj = Activator.CreateInstance<T>();
 
-                for (int i = 0; i < props.Count; i++)
+                for (int column = 0; column < props.Count; column++)
                 {
-                    var strValue = values[i + 1] ?? string.Empty;
+                    try
+                    {
+                        var strValue = values[column + 1] ?? string.Empty;
 
-                    props[i].SetValue(resObj, Convert.ChangeType(strValue, props[i].PropertyType));
+                        props[column].SetValue(resObj, Convert.ChangeType(strValue, props[column].PropertyType));
+                    }
+                    catch (Exception ex)
+                    {
+                        errors.Add(new ImportError()
+                        {
+                            Row = rows.IndexOf(row) + 1,
+                            Column = column + 1,
+                            Exception = ex,
+                            ColumnName = props[column].GetCustomAttribute<ExportNameAttribute>()?.Name ?? props[column].Name,
+                        });
+                    }
                 }
 
                 resultList.Add(resObj);
@@ -363,18 +519,18 @@ namespace PN.Storage
         #region Attributes
 
         /// <summary>
-        /// Column name for tables on export.
+        ///     Column name for tables on export.
         /// </summary>
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
         public class ExportNameAttribute : Attribute
         {
             /// <summary>
-            /// Name of the column for export.
+            ///     Name of the column for export.
             /// </summary>
             public readonly string Name;
 
             /// <summary>
-            /// Please, provide name you wish for export column.
+            ///     Please, provide name you wish for export column.
             /// </summary>
             public ExportNameAttribute(string name)
             {
@@ -383,7 +539,7 @@ namespace PN.Storage
         }
 
         /// <summary>
-        /// All properties with such attributes will be ignored while exporting.
+        ///     All properties with such attributes will be ignored while exporting.
         /// </summary>
         [AttributeUsage(AttributeTargets.All, Inherited = false, AllowMultiple = false)]
         public class ExportIgnoreAttribute : Attribute { }
@@ -392,18 +548,55 @@ namespace PN.Storage
 
         #region Utils
 
-        private enum Format
+        public class ImportError
+        {
+            public int Row { get; set; }
+            public int Column { get; set; }
+            public Exception Exception { get; set; }
+            public string ColumnName { get; set; }
+        }
+
+        public enum ExportFormat
         {
             XLS, XLSX, PDF, CSV
         }
 
-        static BindingFlags bindingFlags = BindingFlags.Public | BindingFlags.NonPublic |
-                                           BindingFlags.Static | BindingFlags.Instance |
-                                           BindingFlags.DeclaredOnly;
+        private static List<string> SupportedImportFilesExtensions = new List<string>()
+        {
+            ".csv", ".xls", ".xlsx"
+        };
+
+        public static string GetContentType(ExportFormat exportFormat)
+        {
+            switch (exportFormat)
+            {
+                case ExportFormat.XLSX:
+                    return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+                case ExportFormat.CSV:
+                    return "text/csv";
+
+                case ExportFormat.PDF:
+                    return "application/pdf";
+
+                case ExportFormat.XLS:
+                    return "application/vnd.ms-excel";
+
+                default:
+                    return "application/octet-stream";
+            }
+        }
+
+        static string[] NewLineSeparator = new string[]
+        {
+            Environment.NewLine
+        };
+
+        static BindingFlags BindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly;
 
         static List<PropertyInfo> GetExportPropertiesFromType(Type resultType)
         {
-            return resultType.GetProperties(bindingFlags).Where(prop => prop.GetCustomAttribute<ExportIgnoreAttribute>() == null).ToList();
+            return resultType.GetProperties(BindingFlags).Where(prop => prop.GetCustomAttribute<ExportIgnoreAttribute>() == null).ToList();
         }
 
         private static object[] ConvertArrayWithSingleListToArrayOfItems(object[] data)
@@ -427,7 +620,7 @@ namespace PN.Storage
 
             return values.ToArray();
         }
-        
+
         static List<T> CreateList<T>()
         {
             try

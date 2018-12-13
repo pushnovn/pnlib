@@ -2,12 +2,12 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <AssemblyVersion>0.1.6.11</AssemblyVersion>
-    <Version>0.1.6.11</Version>
+    <AssemblyVersion>0.1.6.12</AssemblyVersion>
+    <Version>0.1.6.12</Version>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <Company>Pushnovn</Company>
     <PackageProjectUrl>http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http</PackageProjectUrl>
-    <FileVersion>0.1.6.11</FileVersion>
+    <FileVersion>0.1.6.12</FileVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -53,6 +53,9 @@
     <Reference Include="amqmdnet">
       <HintPath>Dlls\amqmdnet.dll</HintPath>
     </Reference>
+    <Reference Include="Microsoft.AspNetCore.Http">
+      <HintPath>..\..\..\..\..\Program Files\dotnet\sdk\NuGetFallbackFolder\microsoft.aspnetcore.http\2.1.1\lib\netstandard2.0\Microsoft.AspNetCore.Http.dll</HintPath>
+    </Reference>
     <Reference Include="System.Data.SQLite">
       <HintPath>Dlls\System.Data.SQLite.dll</HintPath>
     </Reference>
@@ -63,6 +66,7 @@
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
     <PackageReference Include="NPOI" Version="2.4.0" />
     <PackageReference Include="System.Data.SQLite" Version="1.0.109.2" />
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="4.5.0" />
   </ItemGroup>
 
 </Project>
