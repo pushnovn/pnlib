@@ -366,7 +366,7 @@ namespace PN.Storage
                                 where = Where(idCaseSensitiveProperty.Name, Is.In, ids);
                             }
 
-                            command.CommandText = $"DELETE FROM {tableName} {CreateWherePartOfSqlRequest(where, props)}";
+                            command.CommandText = $"DELETE FROM {tableName} {CreateWherePartOfSqlRequest(where, props, true)}";
 
                             return ExecuteNonQueryWithResponse(command);
 

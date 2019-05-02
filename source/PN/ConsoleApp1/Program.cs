@@ -12,7 +12,7 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using static PN.Network.HTTP;
 using static PN.Network.HTTP.Entities;
-using static PN.Storage.ExportЁr;
+using static PN.Storage.Export.ExportЁr;
 
 namespace ConsoleApp1
 {

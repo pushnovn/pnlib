@@ -2,12 +2,12 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <AssemblyVersion>0.1.6.12</AssemblyVersion>
-    <Version>0.1.6.12</Version>
+    <AssemblyVersion>0.1.6.13</AssemblyVersion>
+    <Version>0.1.6.13</Version>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <Company>Pushnovn</Company>
     <PackageProjectUrl>http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http</PackageProjectUrl>
-    <FileVersion>0.1.6.12</FileVersion>
+    <FileVersion>0.1.6.13</FileVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
