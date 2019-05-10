@@ -10,7 +10,7 @@ namespace PN.Storage.EF
     {
         #region public methods
 
-        public static TEntity Single<TEntity>(Func<TEntity, bool> predicate) where TEntity : BaseEntity
+        public static TEntity Single<TEntity>(Func<TEntity, bool> predicate) where TEntity : class
         {
             if (predicate == null)
             {
@@ -20,12 +20,12 @@ namespace PN.Storage.EF
             return EfSingle(predicate);
         }
 
-        public static List<TEntity> Get<TEntity>(Func<TEntity, bool> predicate = null) where TEntity : BaseEntity
+        public static List<TEntity> Get<TEntity>(Func<TEntity, bool> predicate = null) where TEntity : class
         {
             return EfGet(predicate).ToList();
         }
 
-        public static TEntity Upsert<TEntity>(this TEntity value) where TEntity : BaseEntity
+        public static TEntity Upsert<TEntity>(this TEntity value) where TEntity : class
         {
             if (value == null)
             {
@@ -35,12 +35,12 @@ namespace PN.Storage.EF
             return (TEntity)InvokeGenericMethodByName(nameof(EfUpsert), value.GetType(), new object[] { value });
         }
 
-        public static void Delete<TEntity>(Func<TEntity, bool> predicate) where TEntity : BaseEntity
+        public static void Delete<TEntity>(Func<TEntity, bool> predicate) where TEntity : class
         {
             Single(predicate)?.Delete();
         }
 
-        public static void Delete<TEntity>(this TEntity value) where TEntity : BaseEntity
+        public static void Delete<TEntity>(this TEntity value) where TEntity : class
         {
             if (value == null)
             {
@@ -50,7 +50,7 @@ namespace PN.Storage.EF
             InvokeGenericMethodByName(nameof(EfDelete), value.GetType(), new object[] { value });
         }
 
-        public static bool Any<TEntity>(Func<TEntity, bool> predicate) where TEntity : BaseEntity
+        public static bool Any<TEntity>(Func<TEntity, bool> predicate) where TEntity : class
         {
             if (predicate == null)
             {
@@ -65,7 +65,7 @@ namespace PN.Storage.EF
             return (int)InvokeGenericMethodByName(nameof(EfCount), type, new object[] { null });
         }
 
-        public static int Count<TEntity>(Func<TEntity, bool> predicate = null) where TEntity : BaseEntity
+        public static int Count<TEntity>(Func<TEntity, bool> predicate = null) where TEntity : class
         {
             return EfCount(predicate);
         }
@@ -78,14 +78,14 @@ namespace PN.Storage.EF
 
         private static Type EfDbContextType;
 
-        private static (DbSet<TEntity> Entities, DbContext EfContext) CreateEfDB<TEntity>() where TEntity : BaseEntity
+        private static (DbSet<TEntity> Entities, DbContext EfContext) CreateEfDB<TEntity>() where TEntity : class
         {
-            var context = (DbContext)Activator.CreateInstance(EfDbContextType ?? throw new NullReferenceException("You need call 'SetDbContext' before using SimpleRepository' methods!"));
+            var context = (DbContext)Activator.CreateInstance(EfDbContextType ?? throw new NullReferenceException($"You need call '{nameof(SetDbContext)}' before using SimpleRepository' methods!"));
             var dbSet = context.Set<TEntity>();
             return (dbSet, context);
         }
 
-        private static TEntity EfSingle<TEntity>(Func<TEntity, bool> predicate) where TEntity : BaseEntity
+        private static TEntity EfSingle<TEntity>(Func<TEntity, bool> predicate) where TEntity : class
         {
             if (predicate == null)
             {
@@ -97,14 +97,14 @@ namespace PN.Storage.EF
             return returnValue;
         }
 
-        private static IQueryable<TEntity> EfGet<TEntity>(Func<TEntity, bool> predicate = null) where TEntity : BaseEntity
+        private static IQueryable<TEntity> EfGet<TEntity>(Func<TEntity, bool> predicate = null) where TEntity : class
         {
             var entities = CreateEfDB<TEntity>().Entities;
             var returnValue = predicate == null ? entities : entities.Where(predicate).AsQueryable();
             return returnValue;
         }
 
-        private static bool EfAny<TEntity>(Func<TEntity, bool> predicate) where TEntity : BaseEntity
+        private static bool EfAny<TEntity>(Func<TEntity, bool> predicate) where TEntity : class
         {
             if (predicate == null)
             {
@@ -114,7 +114,7 @@ namespace PN.Storage.EF
             return CreateEfDB<TEntity>().Entities.AsNoTracking().Any(predicate);
         }
 
-        private static TEntity EfUpsert<TEntity>(this TEntity value) where TEntity : BaseEntity
+        private static TEntity EfUpsert<TEntity>(this TEntity value) where TEntity : class
         {
             if (value == null)
             {
@@ -122,15 +122,19 @@ namespace PN.Storage.EF
             }
 
             var (entities, efContext) = CreateEfDB<TEntity>();
-            var isValueNew = false == EfAny<TEntity>(e => e.Id == value.Id);
+            var isValueNew = false == EfAny<TEntity>(e => ComparePrimaryKeys(e, value, GetPrimaryKeyName<TEntity>(efContext)));
 
-            var entityProperties = value.GetType().GetProperties().ToList();
-            entityProperties.ForEach(p =>
+            var entityTypes = efContext.Model.GetEntityTypes()
+                                             .Select(t => t.ClrType)
+                                             .ToList();
+
+            foreach (var prop in typeof(TEntity).GetProperties())
             {
-                if (p.PropertyType.BaseType != typeof(BaseEntity)) return;
-                var val = p.GetValue(value);
-                efContext.Attach(val);
-            });
+                if (entityTypes.Contains(prop.PropertyType))
+                {
+                    efContext.Attach(prop.GetValue(value) ?? Activator.CreateInstance<TEntity>());
+                }
+            }
 
             var upsertEntity = isValueNew ? entities.Add(value)?.Entity : entities.Update(value)?.Entity;
 
@@ -139,7 +143,28 @@ namespace PN.Storage.EF
             return upsertEntity;
         }
 
-        private static void EfDelete<TEntity>(this TEntity value) where TEntity : BaseEntity
+        private static bool ComparePrimaryKeys<TEntity>(TEntity t1, TEntity t2, string primaryKeyName)
+        {
+            var prop = typeof(TEntity).GetProperty(primaryKeyName);
+
+            var t1PK = prop.GetValue(t1).ToString();
+            var t2PK = prop.GetValue(t2).ToString();
+
+            return t1PK == t2PK;
+        }
+
+        private static string GetPrimaryKeyName<T>(DbContext dbContext)
+        {
+            return dbContext.Model
+                            .FindEntityType(typeof(T))
+                            .FindPrimaryKey()
+                            .Properties
+                            .Select(x => x.Name)
+                            .Single();
+        }
+
+
+        private static void EfDelete<TEntity>(this TEntity value) where TEntity : class
         {
             if (value == null)
             {
@@ -152,7 +177,7 @@ namespace PN.Storage.EF
             efContext.Dispose();
         }
 
-        private static int EfCount<TEntity>(Func<TEntity, bool> predicate = null) where TEntity : BaseEntity
+        private static int EfCount<TEntity>(Func<TEntity, bool> predicate = null) where TEntity : class
         {
             var (entities, _) = CreateEfDB<TEntity>();
             return predicate == null ? entities.Count() : entities.Count(predicate);
@@ -178,11 +203,6 @@ namespace PN.Storage.EF
             var method = typeof(SimpleRepository).GetMethod(methodName, AccessibleBindingFlags);
             var generic = method.MakeGenericMethod(type);
             return generic;
-        }
-
-        public class BaseEntity
-        {
-            public Guid Id { get; set; }
         }
 
         #endregion
