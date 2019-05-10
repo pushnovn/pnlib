@@ -1,0 +1,73 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyVersion>0.1.7</AssemblyVersion>
+    <Version>0.1.7</Version>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <Company>Pushnovn</Company>
+    <PackageProjectUrl>http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http</PackageProjectUrl>
+    <FileVersion>0.1.7</FileVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DocumentationFile>bin\Release\netstandard2.0\PN.xml</DocumentationFile>
+    <DebugType>full</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <LangVersion>7.1</LangVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <LangVersion>7.1</LangVersion>
+  </PropertyGroup>
+
+  <Target Name="AfterBuild" Condition="'$(Configuration)' == 'Release'">
+    <CreateItem Include="@(ReferenceCopyLocalPaths)" Condition="'%(Extension)'=='.dll'">
+      <Output ItemName="AssembliesToMerge" TaskParameter="Include" />
+    </CreateItem>
+    <PropertyGroup>
+      <ReferenceAssemblies>C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.6.1</ReferenceAssemblies>
+    </PropertyGroup>
+    <Message Importance="high" Text="Executing ILMerge...with target platform from $(ReferenceAssemblies)" />
+    <Exec Command="&quot;$(SolutionDir)ILMerge.exe&quot; /out:@(MainAssembly) /ndebug /internalize /targetplatform:v4,&quot;$(ReferenceAssemblies)&quot; &quot;@(IntermediateAssembly)&quot; @(AssembliesToMerge->'&quot;%(FullPath)&quot;', ' ')" />
+    <Delete Files="@(ReferenceCopyLocalPaths->'$(OutDir)%(DestinationSubDirectory)%(Filename)%(Extension)')" />
+  </Target>
+
+  <ItemGroup>
+    <Compile Remove="Dlls\**" />
+    <Compile Remove="nuget\**" />
+    <Compile Remove="SQLiteDlls\**" />
+    <EmbeddedResource Remove="Dlls\**" />
+    <EmbeddedResource Remove="nuget\**" />
+    <EmbeddedResource Remove="SQLiteDlls\**" />
+    <None Remove="Dlls\**" />
+    <None Remove="nuget\**" />
+    <None Remove="SQLiteDlls\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Network\amqmdnet.dll" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="amqmdnet">
+      <HintPath>Dlls\amqmdnet.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.AspNetCore.Http">
+      <HintPath>..\..\..\..\..\Program Files\dotnet\sdk\NuGetFallbackFolder\microsoft.aspnetcore.http\2.1.1\lib\netstandard2.0\Microsoft.AspNetCore.Http.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Data.SQLite">
+      <HintPath>Dlls\System.Data.SQLite.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="iTextSharp" Version="5.5.13" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="2.0.3" />
+    <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
+    <PackageReference Include="NPOI" Version="2.4.0" />
+    <PackageReference Include="System.Data.SQLite" Version="1.0.109.2" />
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="4.5.0" />
+  </ItemGroup>
+
+</Project>
