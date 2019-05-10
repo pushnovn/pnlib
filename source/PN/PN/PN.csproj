@@ -2,12 +2,12 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <AssemblyVersion>0.1.6.13</AssemblyVersion>
-    <Version>0.1.6.13</Version>
+    <AssemblyVersion>0.1.7</AssemblyVersion>
+    <Version>0.1.7</Version>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <Company>Pushnovn</Company>
     <PackageProjectUrl>http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http</PackageProjectUrl>
-    <FileVersion>0.1.6.13</FileVersion>
+    <FileVersion>0.1.7</FileVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -63,6 +63,7 @@
 
   <ItemGroup>
     <PackageReference Include="iTextSharp" Version="5.5.13" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="2.0.3" />
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
     <PackageReference Include="NPOI" Version="2.4.0" />
     <PackageReference Include="System.Data.SQLite" Version="1.0.109.2" />
