@@ -10,17 +10,14 @@ Please test carefully before using.
 */
 
 
-using System;
-using System.Diagnostics;
-using System.Text.RegularExpressions;
 
 namespace WordsMatching
 {
-	/// <summary>
-	/// Summary description for StringMatcher.
-	/// </summary>
-	/// 
-	public delegate float Similarity(string s1,string s2);
+    /// <summary>
+    /// Summary description for StringMatcher.
+    /// </summary>
+    /// 
+    public delegate float Similarity(string s1,string s2);
 
 	public class MatchsMaker
 	{		

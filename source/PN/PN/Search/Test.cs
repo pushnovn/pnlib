@@ -1,13 +1,12 @@
 using System;
 using System.Diagnostics;
-using System.Text.RegularExpressions ;
 
 namespace WordsMatching
 {
-	/// <summary>
-	/// Summary description for Class1.
-	/// </summary>
-	class Test
+    /// <summary>
+    /// Summary description for Class1.
+    /// </summary>
+    class Test
 	{
 		/// <summary>
 		/// The main entry point for the application.

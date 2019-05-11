@@ -6,16 +6,15 @@ Copyright (c) 2005 by Thanh Ngoc Dao.
 
 using System;
 using System.Diagnostics;
-using System.Text.RegularExpressions;
 
 namespace WordsMatching
 {
-	/// <summary>
-	/// Summary description for StringMatcher.
-	/// </summary>
-	/// 
+    /// <summary>
+    /// Summary description for StringMatcher.
+    /// </summary>
+    /// 
 
-	public class BipartiteMatcher
+    public class BipartiteMatcher
 	{				
 		private string[] _leftTokens, _rightTokens;		
 		private float[,] _cost;

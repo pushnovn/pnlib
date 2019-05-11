@@ -3,14 +3,13 @@ Matching two strings
 Author: Thanh Ngoc Dao - Thanh.dao@gmx.net
 Copyright (c) 2005 by Thanh Ngoc Dao.
 */
-using System;
 
 namespace WordsMatching
 {
-	/// <summary>
-	/// Summary description for Leven.
-	/// </summary>
-	internal class Leven: ISimilarity
+    /// <summary>
+    /// Summary description for Leven.
+    /// </summary>
+    internal class Leven: ISimilarity
 	{
 		private int Min3(int a, int b, int c)
 		{

@@ -7,7 +7,6 @@ using System.Reflection;
 using System.Text;
 using iTextSharp.text;
 using iTextSharp.text.pdf;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Internal;
 using NPOI.HSSF.UserModel;
 using NPOI.SS.UserModel;
