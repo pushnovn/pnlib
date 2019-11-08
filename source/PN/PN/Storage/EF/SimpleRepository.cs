@@ -1,28 +1,40 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 
 namespace PN.Storage.EF
 {
+    // TODO: Add TEntity check type in list of entity types 
+    // TODO: Add result value for Delete methods
+    // TODO: Add summary
+    // TODO: Add separate Add and Update methods
+
     public static class SimpleRepository
     {
         #region public methods
 
-        public static TEntity Single<TEntity>(Func<TEntity, bool> predicate) where TEntity : class
+        public static TEntity Single<TEntity>(Func<TEntity, bool> predicate, bool withIncludes = false) where TEntity : class
         {
             if (predicate == null)
             {
                 throw new ArgumentNullException(nameof(predicate));
             }
 
-            return EfSingle(predicate);
+            return EfSingle(predicate, withIncludes);
         }
 
-        public static List<TEntity> Get<TEntity>(Func<TEntity, bool> predicate = null) where TEntity : class
+        public static List<TEntity> Get<TEntity>(bool withIncludes = false) where TEntity : class
         {
-            return EfGet(predicate).ToList();
+            return EfGet<TEntity>(null, withIncludes).ToList();
+        }
+
+        public static List<TEntity> Where<TEntity>(Func<TEntity, bool> predicate, bool withIncludes = false) where TEntity : class
+        {
+            return EfGet<TEntity>(predicate, withIncludes).ToList();
         }
 
         public static TEntity Upsert<TEntity>(this TEntity value) where TEntity : class
@@ -80,28 +92,44 @@ namespace PN.Storage.EF
 
         private static (DbSet<TEntity> Entities, DbContext EfContext) CreateEfDB<TEntity>() where TEntity : class
         {
-            var context = (DbContext)Activator.CreateInstance(EfDbContextType ?? throw new NullReferenceException($"You need call '{nameof(SetDbContext)}' before using SimpleRepository' methods!"));
+            var context = (DbContext)Activator.CreateInstance(EfDbContextType
+                            ?? throw new NullReferenceException(
+                                $"You need call '{nameof(SetDbContext)}' before using SimpleRepository' methods!"));
             var dbSet = context.Set<TEntity>();
             return (dbSet, context);
         }
 
-        private static TEntity EfSingle<TEntity>(Func<TEntity, bool> predicate) where TEntity : class
+        private static TEntity EfSingle<TEntity>(Func<TEntity, bool> predicate, bool withIncludes) where TEntity : class
         {
             if (predicate == null)
             {
                 throw new ArgumentNullException(nameof(predicate));
             }
 
-            var entities = CreateEfDB<TEntity>().Entities;
-            var returnValue = entities.FirstOrDefault(predicate);
-            return returnValue;
+            var db = CreateEfDB<TEntity>();
+            if (withIncludes)
+            {
+                return db.Entities.WithIncludes(db.EfContext).FirstOrDefault(predicate);
+            }
+
+            return db.Entities.FirstOrDefault(predicate);
         }
 
-        private static IQueryable<TEntity> EfGet<TEntity>(Func<TEntity, bool> predicate = null) where TEntity : class
+        private static IEnumerable<TEntity> EfGet<TEntity>(Func<TEntity, bool> predicate, bool withIncludes) where TEntity : class
         {
-            var entities = CreateEfDB<TEntity>().Entities;
-            var returnValue = predicate == null ? entities : entities.Where(predicate).AsQueryable();
-            return returnValue;
+            var db = CreateEfDB<TEntity>();
+
+            if (withIncludes)
+            {
+                return predicate == null
+                            ? db.Entities.WithIncludes(db.EfContext).ToList()
+                            : db.Entities.WithIncludes(db.EfContext).Where(predicate).ToList();
+            }
+
+            return predicate == null
+                        ? db.Entities.ToList()
+                        : db.Entities.Where(predicate).ToList();
+
         }
 
         private static bool EfAny<TEntity>(Func<TEntity, bool> predicate) where TEntity : class
@@ -122,7 +150,15 @@ namespace PN.Storage.EF
             }
 
             var (entities, efContext) = CreateEfDB<TEntity>();
-            var isValueNew = false == EfAny<TEntity>(e => ComparePrimaryKeys(e, value, GetPrimaryKeyName<TEntity>(efContext)));
+
+            bool isValueNew = true;
+
+            try
+            {
+                isValueNew = false == EfAny<TEntity>(e => ComparePrimaryKeys(e, value, GetPrimaryKeyName<TEntity>(efContext)));
+            }
+            catch
+            { }
 
             var entityTypes = efContext.Model.GetEntityTypes()
                                              .Select(t => t.ClrType)
@@ -132,11 +168,18 @@ namespace PN.Storage.EF
             {
                 if (entityTypes.Contains(prop.PropertyType))
                 {
-                    efContext.Attach(prop.GetValue(value) ?? Activator.CreateInstance<TEntity>());
+                    var propValue = prop.GetValue(value);
+
+                    if (propValue != null)
+                    {
+                        efContext.Attach(propValue);
+                    }
                 }
             }
 
-            var upsertEntity = isValueNew ? entities.Add(value)?.Entity : entities.Update(value)?.Entity;
+            var upsertEntity = isValueNew
+                                ? entities.Add(value)?.Entity
+                                : entities.Update(value)?.Entity;
 
             efContext.SaveChanges();
             efContext.Dispose();
@@ -183,9 +226,47 @@ namespace PN.Storage.EF
             return predicate == null ? entities.Count() : entities.Count(predicate);
         }
 
+        private static IQueryable<TEntity> WithIncludes<TEntity>(this IQueryable<TEntity> entities, DbContext context) where TEntity : class
+        {
+            var entityTypes = context.Model.GetEntityTypes().Select(t => t.ClrType);
+
+            foreach (var prop in typeof(TEntity).GetProperties())
+            {
+                if (
+                    prop.PropertyType != typeof(string) &&
+                    IsEnumerableType(prop.PropertyType) ||
+                    IsCollectionType(prop.PropertyType)
+                )
+                {
+                    if (entityTypes.Contains(prop.PropertyType.GetGenericArguments()[0]))
+                    {
+                        entities = entities.Include($".{prop.Name}");
+                    }
+                }
+                else
+                {
+                    if (entityTypes.Contains(prop.PropertyType))
+                    {
+                        entities = entities.Include($".{prop.Name}");
+                    }
+                }
+            }
+            return entities;
+        }
+
         #endregion
 
         #region reflect helpers
+
+        static bool IsEnumerableType(Type type)
+        {
+            return (type.GetInterface(nameof(IEnumerable)) != null);
+        }
+
+        static bool IsCollectionType(Type type)
+        {
+            return (type.GetInterface(nameof(ICollection)) != null);
+        }
 
         private static object InvokeGenericMethodByName(string methodName, Type genericType, object[] parameters = null)
         {

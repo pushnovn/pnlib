@@ -279,10 +279,15 @@ namespace PN.Storage
                                         value = (commandName == nameof(Set) || value.Equals(0)) ? null : value;
                                     }
 
-                                    value = (value != null && value is string) ? (value as string).Replace("\'", "\'\'") : value;
-
-                                    if (prop.PropertyType.IsValueType == false && prop.PropertyType != typeof(string))
+                                    if (value is string valstr)
+                                    {
+                                        value = valstr.Replace("\'", "\'\'");
+                                    }
+                                    
+                                    if (prop.PropertyType.IsPrimitive == false && prop.PropertyType != typeof(string))
+                                    {
                                         value = Utils.Converters.ObjectToString(value);
+                                    }
 
                                     strWithValues += $"{value.ToSQLiteString()},";
                                 }

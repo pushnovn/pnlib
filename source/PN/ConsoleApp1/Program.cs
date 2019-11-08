@@ -1,18 +1,18 @@
 ﻿//using Newtonsoft.Json;
+using IronOcr;
 using PN.Network;
 using PN.Storage;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using static PN.Network.HTTP;
 using static PN.Network.HTTP.Entities;
-using static PN.Storage.Export.ExportЁr;
 
 namespace ConsoleApp1
 {
@@ -73,27 +73,99 @@ namespace ConsoleApp1
             public List<Comment> Comments { get; set; }
         }
 
-        [ExportName("Список рейсов")]
+    //    [ExportName("Список рейсов")]
         public class Air
         {
-            [ExportName("Номер рейса")]
+      //      [ExportName("Номер рейса")]
             public string Number { get; set; }
 
-            [ExportName("Количество пассажиров")]
+     //       [ExportName("Количество пассажиров")]
             public int PassengersCount { get; set; }
 
             public string PlaneType { get; set; }
 
-            [ExportName("Аэропорт отправления")]
+     //       [ExportName("Аэропорт отправления")]
             public string AirportFrom { get; set; }
 
             public string AirportTo { get; set; }
         }
 
+        public class TestSQLiteBug
+        {
+            public int Id { get; set; }
+            public DateTimeOffset DT { get; set; }
+        }
+
         #endregion
+
+        private static string ReturnNullString() => null;
 
         static void Main(string[] args)
         {
+            SQLite.PathToDB = "sdsd";
+            SQLite.SetOrUpdate(new TestSQLiteBug() { Id = 1, DT = DateTimeOffset.Now });
+
+
+            return;
+
+            var lang = IronOcr.Languages.MultiLanguage.OcrLanguagePack(
+                IronOcr.Languages.English.OcrLanguagePack, 
+                IronOcr.Languages.Russian.OcrLanguagePack);
+
+            var Ocr = new IronOcr.AdvancedOcr()
+            {
+                CleanBackgroundNoise = true,
+                EnhanceContrast = true,
+                EnhanceResolution = true,
+                Language = lang,// IronOcr.Languages.Russian.OcrLanguagePack,
+                Strategy = IronOcr.AdvancedOcr.OcrStrategy.Advanced,
+                ColorSpace = AdvancedOcr.OcrColorSpace.Color,
+                DetectWhiteTextOnDarkBackgrounds = true,
+                InputImageType = AdvancedOcr.InputTypes.AutoDetect,
+                RotateAndStraighten = true,
+                ReadBarCodes = true,
+                ColorDepth = 4
+            };
+
+
+
+
+           // var Ocr = new IronOcr.AutoOcr();
+            var Result = Ocr.Read(@"C:\Users\pushn\Pictures\test1.jpg");
+            Console.WriteLine(Result.Text);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            if (ReturnNullString() is string str)
+            {
+                Console.WriteLine("Null == string");
+            }
+            else
+            {
+                Console.WriteLine("Null != string");
+            }
+
+
+
+
             SQLite.PathToDB = "test.db";
             SQLite.PathToDB = @"C:\Repos\air-ibm-mq\source\IBM_Server\IBM_Server\AirDB.db";
             //
@@ -233,7 +305,7 @@ namespace ConsoleApp1
 
             //   var result = PN.Storage.ExportImport.FromXLSX<Air>(byteArray);
             //    var result = PN.Storage.ExportЁr.FromXLS<Air>(false, byteArray);
-            var result = PN.Storage.ExportЁr.FromPDF<Air>(withHeader, byteArray);
+      //      var result = PN.Storage.ExportЁr.FromPDF<Air>(withHeader, byteArray);
 
             //     Console.ReadKey();
 

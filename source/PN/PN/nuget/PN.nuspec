@@ -2,14 +2,14 @@
 <package >
   <metadata>
     <id>Pushnovn.PN</id>
-    <version>0.1.7.1</version>
+    <version>0.1.7.5</version>
     <title>PN lib (Pre-Alpha)</title>
     <authors>Pushnovn</authors>
     <owners>Pushnovn</owners>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <description>Internal PN lib</description>
+    <description>Internal PN lib (Pre-Alpha)</description>
     <releaseNotes>
-- Removed BaseEntity addiction.
+- Fixed SQLite bug with primitive types and structs.
     </releaseNotes>
     <projectUrl>http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http</projectUrl>
     <copyright>Copyright 2019</copyright>
