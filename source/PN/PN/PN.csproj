@@ -2,12 +2,13 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <AssemblyVersion>0.1.7.5</AssemblyVersion>
-    <Version>0.1.7.5</Version>
+    <AssemblyVersion>0.1.7.6</AssemblyVersion>
+    <Version>0.1.7.6</Version>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <Company>Pushnovn</Company>
-    <PackageProjectUrl>http://wiki.pushnovn.com/doku.php?id=csharp_pn_lib_network_http</PackageProjectUrl>
-    <FileVersion>0.1.7.5</FileVersion>
+    <PackageProjectUrl>https://github.com/pushnovn/pnlib/</PackageProjectUrl>
+    <FileVersion>0.1.7.6</FileVersion>
+    <PackageLicenseUrl>https://github.com/pushnovn/pnlib/wiki/License</PackageLicenseUrl>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
