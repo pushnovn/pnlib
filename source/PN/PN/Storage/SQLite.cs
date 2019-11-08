@@ -284,11 +284,6 @@ namespace PN.Storage
                                         value = valstr.Replace("\'", "\'\'");
                                     }
                                     
-                                    if (prop.PropertyType.IsPrimitive == false && prop.PropertyType != typeof(string))
-                                    {
-                                        value = Utils.Converters.ObjectToString(value);
-                                    }
-
                                     strWithValues += $"{value.ToSQLiteString()},";
                                 }
 
@@ -320,10 +315,7 @@ namespace PN.Storage
                                     value = value != null && value is string ? (value as string).Replace("\'", "\'\'") : value;
 
                                     var id = resultType.GetProperty("id", bindingFlags | BindingFlags.IgnoreCase).GetValue(obj, null);
-
-                                    if (prop.PropertyType.IsValueType == false && prop.PropertyType != typeof(string))
-                                        value = Utils.Converters.ObjectToString(value);
-
+                                    
                                     groupString += $"WHEN {id} THEN {value.ToSQLiteString()} ";
 
                                     idsEnum += id + ",";
@@ -551,8 +543,8 @@ namespace PN.Storage
                         {
                             var resObj = Activator.CreateInstance(resultType);
                             var props = GetSQLitePropertiesFromType(resultType);
-
-                            foreach (var prop in GetSQLitePropertiesFromType(resultType))
+                            
+                            foreach (var prop in props)
                             {
                                 var propertyNameInTable = GetPropertyNameInTable(prop);
                                 var objectFromSQLiteDataReader = sqliteDataReader[propertyNameInTable];
@@ -566,11 +558,34 @@ namespace PN.Storage
                                     }
                                     else if (prop.PropertyType.IsEnum)
                                     {
-                                        objectToSetToProperty = Convert.ChangeType(Enum.Parse(prop.PropertyType, objectFromSQLiteDataReader.ToString(), true), prop.PropertyType);
+                                        objectToSetToProperty = Convert.ChangeType(
+                                            Enum.Parse(prop.PropertyType, objectFromSQLiteDataReader.ToString(), true), prop.PropertyType);
                                     }
                                     else if (prop.PropertyType == typeof(bool) && SQLite.BooleanType == BooleanStorageType.Integer)
                                     {
                                         objectToSetToProperty = (long)objectFromSQLiteDataReader == 1;
+                                    }
+                                    else if (prop.PropertyType == typeof(DateTime))
+                                    {
+                                        if (DateTime.TryParse(objectFromSQLiteDataReader.ToString(), out DateTime res))
+                                        {
+                                            objectToSetToProperty = res;
+                                        }
+                                        else
+                                        {
+                                            throw new ArgumentException($"Filed is DateTime, but problems with '{objectFromSQLiteDataReader}'");
+                                        }
+                                    }
+                                    else if (prop.PropertyType == typeof(DateTimeOffset))
+                                    {
+                                        if (DateTimeOffset.TryParse(objectFromSQLiteDataReader.ToString(), out DateTimeOffset res))
+                                        {
+                                            objectToSetToProperty = res;
+                                        }
+                                        else
+                                        {
+                                            throw new ArgumentException($"Filed is DateTimeOffset, but problems with '{objectFromSQLiteDataReader}'");
+                                        }
                                     }
                                     else if (prop.PropertyType.IsValueType || prop.PropertyType == typeof(string))
                                     {
@@ -1329,6 +1344,17 @@ namespace PN.Storage
                     case SQLite.BooleanStorageType.String:
                         return $"'{value}'";
                 }
+            }
+
+            if (value.GetType() == typeof(DateTime) ||
+                value.GetType() == typeof(DateTimeOffset))
+            {
+                return $"'{value}'";
+            }
+
+            if (value.GetType().IsPrimitive == false)
+            {
+                return $"'{Utils.Converters.ObjectToString(value)}'";
             }
 
             return value.ToString();
