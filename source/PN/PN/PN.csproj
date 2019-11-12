@@ -2,12 +2,12 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <AssemblyVersion>0.1.7.6</AssemblyVersion>
-    <Version>0.1.7.6</Version>
+    <AssemblyVersion>0.1.7.7</AssemblyVersion>
+    <Version>0.1.7.7</Version>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <Company>Pushnovn</Company>
     <PackageProjectUrl>https://github.com/pushnovn/pnlib/</PackageProjectUrl>
-    <FileVersion>0.1.7.6</FileVersion>
+    <FileVersion>0.1.7.7</FileVersion>
     <PackageLicenseUrl>https://github.com/pushnovn/pnlib/wiki/License</PackageLicenseUrl>
   </PropertyGroup>
 

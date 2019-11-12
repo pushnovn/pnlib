@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
@@ -232,6 +233,11 @@ namespace PN.Storage.EF
 
             foreach (var prop in typeof(TEntity).GetProperties())
             {
+                if (prop.GetCustomAttribute<NotMappedAttribute>() != null)
+                {
+                    continue;
+                }
+
                 if (
                     prop.PropertyType != typeof(string) &&
                     IsEnumerableType(prop.PropertyType) ||
